@@ -1,0 +1,65 @@
+{
+  "openapi": "3.1.0",
+  "paths": {
+    "/things": {
+      "get": {
+        "operationId": "things.list",
+        "security": [{"oauth2": ["things:read"]}],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {"schema": {"$ref": "#/components/schemas/ThingList"}}
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "things.create",
+        "security": [{"oauth2": ["things:write"]}],
+        "requestBody": {
+          "content": {
+            "application/json": {"schema": {"$ref": "#/components/schemas/CreateThing"}}
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {"schema": {"$ref": "#/components/schemas/ThingEnvelope"}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ThingList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data"],
+        "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/Thing"}}}
+      },
+      "ThingEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data"],
+        "properties": {"data": {"$ref": "#/components/schemas/Thing"}}
+      },
+      "Thing": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "parent"],
+        "properties": {
+          "id": {"type": "string"},
+          "parent": {"oneOf": [{"$ref": "#/components/schemas/Thing"}, {"type": "null"}]}
+        }
+      },
+      "CreateThing": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {"name": {"type": "string"}}
+      }
+    }
+  }
+}

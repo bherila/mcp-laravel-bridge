@@ -1,0 +1,40 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "bherila/mcp-laravel-bridge",
+    "description": "Shared MCP-over-REST infrastructure for Laravel applications.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.3 <8.6",
+        "guzzlehttp/psr7": "^2.7",
+        "illuminate/contracts": "^12.0 || ^13.0",
+        "illuminate/http": "^12.0 || ^13.0",
+        "illuminate/routing": "^12.0 || ^13.0",
+        "illuminate/support": "^12.0 || ^13.0",
+        "mcp/sdk": "^0.7.1",
+        "psr/log": "^3.0",
+        "symfony/psr-http-message-bridge": "^7.2 || ^8.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.0 || ^11.0",
+        "phpunit/phpunit": "^12.0 || ^13.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Bherila\\McpLaravelBridge\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Bherila\\McpLaravelBridge\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
