@@ -37,6 +37,16 @@ final class ToolWithSecuritySchemesTest extends TestCase
         );
     }
 
+    public function test_scheme_object_keys_are_normalized(): void
+    {
+        $serialized = $this->tool([['scopes' => ['read'], 'type' => 'oauth2']])->jsonSerialize();
+
+        self::assertSame(
+            [['type' => 'oauth2', 'scopes' => ['read']]],
+            $serialized['securitySchemes'],
+        );
+    }
+
     /** @param mixed $schemes */
     #[DataProvider('invalidSchemeProvider')]
     public function test_it_rejects_malformed_or_unbounded_schemes(mixed $schemes): void
@@ -64,6 +74,10 @@ final class ToolWithSecuritySchemesTest extends TestCase
         yield 'backslash in scope token' => [[['type' => 'oauth2', 'scopes' => ['things\\read']]]];
         yield 'duplicate scope' => [[['type' => 'oauth2', 'scopes' => ['read', 'read']]]];
         yield 'duplicate scheme' => [[['type' => 'noauth'], ['type' => 'noauth']]];
+        yield 'duplicate reordered scheme' => [[
+            ['type' => 'oauth2', 'scopes' => ['read', 'write']],
+            ['scopes' => ['write', 'read'], 'type' => 'oauth2'],
+        ]];
         yield 'too many schemes' => [array_fill(
             0,
             ToolWithSecuritySchemes::MAX_SCHEMES + 1,
@@ -87,6 +101,16 @@ final class ToolWithSecuritySchemesTest extends TestCase
         $this->tool(
             [['type' => 'oauth2', 'scopes' => ['read']]],
             ['securitySchemes' => [['type' => 'oauth2', 'scopes' => ['write']]]],
+        );
+    }
+
+    public function test_it_rejects_a_null_compatibility_mirror(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->tool(
+            [['type' => 'oauth2', 'scopes' => ['read']]],
+            ['securitySchemes' => null],
         );
     }
 

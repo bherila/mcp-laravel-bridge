@@ -52,8 +52,12 @@ final class ToolWithSecuritySchemes extends Tool
     ) {
         $securitySchemes = self::validateSecuritySchemes($securitySchemes);
 
-        if (isset($meta['securitySchemes']) && $meta['securitySchemes'] !== $securitySchemes) {
-            throw new InvalidArgumentException('Tool _meta.securitySchemes must match the top-level securitySchemes value.');
+        if (array_key_exists('securitySchemes', $meta ?? [])) {
+            if (!is_array($meta['securitySchemes'])
+                || self::validateSecuritySchemes($meta['securitySchemes']) !== $securitySchemes
+            ) {
+                throw new InvalidArgumentException('Tool _meta.securitySchemes must match the top-level securitySchemes value.');
+            }
         }
 
         $this->securitySchemes = $securitySchemes;
@@ -92,6 +96,7 @@ final class ToolWithSecuritySchemes extends Tool
 
         $seenSchemes = [];
         $scopeCount = 0;
+        $normalizedSchemes = [];
 
         foreach ($securitySchemes as $scheme) {
             if (!is_array($scheme) || !is_string($scheme['type'] ?? null)) {
@@ -105,6 +110,7 @@ final class ToolWithSecuritySchemes extends Tool
                 if ($keys !== ['type']) {
                     throw new InvalidArgumentException('A noauth security scheme may contain only its type.');
                 }
+                $normalizedScheme = ['type' => 'noauth'];
             } elseif ($scheme['type'] === 'oauth2') {
                 if ($keys !== ['scopes', 'type'] || !is_array($scheme['scopes']) || !array_is_list($scheme['scopes'])) {
                     throw new InvalidArgumentException('An oauth2 security scheme requires a list of scopes and no unknown fields.');
@@ -130,21 +136,27 @@ final class ToolWithSecuritySchemes extends Tool
                         throw new InvalidArgumentException('OAuth tool security schemes contain too many scopes.');
                     }
                 }
+                $normalizedScheme = ['type' => 'oauth2', 'scopes' => $scheme['scopes']];
             } else {
                 throw new InvalidArgumentException('Unsupported tool security scheme type.');
             }
 
-            $fingerprint = json_encode($scheme, JSON_THROW_ON_ERROR);
+            $fingerprintScheme = $normalizedScheme;
+            if ($fingerprintScheme['type'] === 'oauth2') {
+                sort($fingerprintScheme['scopes']);
+            }
+            $fingerprint = json_encode($fingerprintScheme, JSON_THROW_ON_ERROR);
             if (isset($seenSchemes[$fingerprint])) {
                 throw new InvalidArgumentException('Tool securitySchemes must not contain duplicates.');
             }
             $seenSchemes[$fingerprint] = true;
+            $normalizedSchemes[] = $normalizedScheme;
         }
 
-        if (strlen(json_encode($securitySchemes, JSON_THROW_ON_ERROR)) > self::MAX_SERIALIZED_BYTES) {
+        if (strlen(json_encode($normalizedSchemes, JSON_THROW_ON_ERROR)) > self::MAX_SERIALIZED_BYTES) {
             throw new InvalidArgumentException('Tool securitySchemes exceed the serialized size limit.');
         }
 
-        return $securitySchemes;
+        return $normalizedSchemes;
     }
 }
