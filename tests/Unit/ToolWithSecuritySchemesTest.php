@@ -47,6 +47,24 @@ final class ToolWithSecuritySchemesTest extends TestCase
         );
     }
 
+    public function test_validated_schemes_are_detached_from_caller_references(): void
+    {
+        $scope = 'things:read';
+        $schemes = [['type' => 'oauth2', 'scopes' => [&$scope]]];
+        $tool = $this->tool($schemes);
+
+        $scope = 'invalid scope after construction';
+
+        self::assertSame(
+            [['type' => 'oauth2', 'scopes' => ['things:read']]],
+            $tool->jsonSerialize()['securitySchemes'],
+        );
+        self::assertSame(
+            $tool->jsonSerialize()['securitySchemes'],
+            $tool->jsonSerialize()['_meta']['securitySchemes'],
+        );
+    }
+
     /** @param mixed $schemes */
     #[DataProvider('invalidSchemeProvider')]
     public function test_it_rejects_malformed_or_unbounded_schemes(mixed $schemes): void

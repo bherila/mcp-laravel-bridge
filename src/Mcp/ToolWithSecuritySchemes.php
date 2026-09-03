@@ -117,6 +117,7 @@ final class ToolWithSecuritySchemes extends Tool
                 }
 
                 $seenScopes = [];
+                $normalizedScopes = [];
                 foreach ($scheme['scopes'] as $scope) {
                     if (!is_string($scope)
                         || $scope === ''
@@ -131,12 +132,13 @@ final class ToolWithSecuritySchemes extends Tool
                     }
 
                     $seenScopes[$scope] = true;
+                    $normalizedScopes[] = $scope;
                     $scopeCount++;
                     if ($scopeCount > self::MAX_SCOPES) {
                         throw new InvalidArgumentException('OAuth tool security schemes contain too many scopes.');
                     }
                 }
-                $normalizedScheme = ['type' => 'oauth2', 'scopes' => $scheme['scopes']];
+                $normalizedScheme = ['type' => 'oauth2', 'scopes' => $normalizedScopes];
             } else {
                 throw new InvalidArgumentException('Unsupported tool security scheme type.');
             }
