@@ -145,7 +145,7 @@ final class ToolWithSecuritySchemes extends Tool
 
             $fingerprintScheme = $normalizedScheme;
             if ($fingerprintScheme['type'] === 'oauth2') {
-                sort($fingerprintScheme['scopes']);
+                sort($fingerprintScheme['scopes'], SORT_STRING);
             }
             $fingerprint = json_encode($fingerprintScheme, JSON_THROW_ON_ERROR);
             if (isset($seenSchemes[$fingerprint])) {

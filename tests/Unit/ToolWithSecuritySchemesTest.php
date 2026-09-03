@@ -96,6 +96,10 @@ final class ToolWithSecuritySchemesTest extends TestCase
             ['type' => 'oauth2', 'scopes' => ['read', 'write']],
             ['scopes' => ['write', 'read'], 'type' => 'oauth2'],
         ]];
+        yield 'duplicate reordered numeric-looking scopes' => [[
+            ['type' => 'oauth2', 'scopes' => ['1', '01']],
+            ['type' => 'oauth2', 'scopes' => ['01', '1']],
+        ]];
         yield 'too many schemes' => [array_fill(
             0,
             ToolWithSecuritySchemes::MAX_SCHEMES + 1,
