@@ -37,6 +37,17 @@ final class ToolWithSecuritySchemesTest extends TestCase
         );
     }
 
+    public function test_a_compatibility_mirror_with_reordered_scopes_is_accepted_and_replaced_with_the_top_level_order(): void
+    {
+        $schemes = [['type' => 'oauth2', 'scopes' => ['read', 'write']]];
+        $serialized = $this->tool($schemes, [
+            'securitySchemes' => [['scopes' => ['write', 'read'], 'type' => 'oauth2']],
+        ])->jsonSerialize();
+
+        self::assertSame($schemes, $serialized['securitySchemes']);
+        self::assertSame($schemes, $serialized['_meta']['securitySchemes']);
+    }
+
     public function test_scheme_object_keys_are_normalized(): void
     {
         $serialized = $this->tool([['scopes' => ['read'], 'type' => 'oauth2']])->jsonSerialize();

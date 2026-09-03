@@ -54,7 +54,8 @@ final class ToolWithSecuritySchemes extends Tool
 
         if (array_key_exists('securitySchemes', $meta ?? [])) {
             if (!is_array($meta['securitySchemes'])
-                || self::validateSecuritySchemes($meta['securitySchemes']) !== $securitySchemes
+                || self::withCanonicalScopeOrder(self::validateSecuritySchemes($meta['securitySchemes']))
+                    !== self::withCanonicalScopeOrder($securitySchemes)
             ) {
                 throw new InvalidArgumentException('Tool _meta.securitySchemes must match the top-level securitySchemes value.');
             }
@@ -160,5 +161,21 @@ final class ToolWithSecuritySchemes extends Tool
         }
 
         return $normalizedSchemes;
+    }
+
+    /**
+     * @param list<SecurityScheme> $securitySchemes
+     * @return list<SecurityScheme>
+     */
+    private static function withCanonicalScopeOrder(array $securitySchemes): array
+    {
+        foreach ($securitySchemes as &$scheme) {
+            if ($scheme['type'] === 'oauth2') {
+                sort($scheme['scopes'], SORT_STRING);
+            }
+        }
+        unset($scheme);
+
+        return $securitySchemes;
     }
 }
