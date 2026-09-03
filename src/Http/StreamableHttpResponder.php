@@ -13,8 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class StreamableHttpResponder
 {
-    /** @param list<MiddlewareInterface> $middleware */
-    public function run(Request $request, Server $server, array $middleware, int $maxBodyBytes): Response
+    /** @param list<MiddlewareInterface>|null $middleware null selects the SDK's secure defaults */
+    public function run(Request $request, Server $server, ?array $middleware, int $maxBodyBytes): Response
     {
         $httpFactory = new HttpFactory;
         $psrRequest = (new PsrHttpFactory($httpFactory, $httpFactory, $httpFactory, $httpFactory))

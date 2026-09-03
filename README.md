@@ -53,6 +53,12 @@ does not yet expose the top-level field. The bridge supports and tests both the
 v0.7 and v0.8 SDK lines. Prefer the upstream SDK representation once one is
 released and proven compatible.
 
+Pass `null` as `StreamableHttpResponder::run()`'s middleware argument to use
+the SDK's secure transport defaults. With `mcp/sdk` v0.8+, do not place
+`ProtocolVersionMiddleware` in a custom edge stack: the SDK applies it only
+after classifying handshake-era requests, allowing the same endpoint to serve
+the modern `2026-07-28` lifecycle.
+
 ## Long-lived workers
 
 The internal REST transport temporarily replaces Laravel's container-bound request while an in-process subrequest runs and always restores it after success or failure. This is safe under normal PHP request execution. Concurrently interleaved requests in the same process (including an Octane task model that permits interleaving during dispatch) are not supported; deploy the bridge in a non-interleaving request context or provide an isolated transport adapter.
