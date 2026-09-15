@@ -20,7 +20,7 @@ final class SyntheticMcpServerFactory
             title: 'Bridge ping',
             inputSchema: [
                 'type' => 'object',
-                'properties' => [],
+                'properties' => (object) [],
                 'additionalProperties' => false,
             ],
             description: 'Calls a synthetic transport-independent application service.',

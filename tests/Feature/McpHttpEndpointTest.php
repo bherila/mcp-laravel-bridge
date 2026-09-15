@@ -69,6 +69,7 @@ final class McpHttpEndpointTest extends TestCase
         );
         self::assertSame(200, $called->getStatusCode());
         $callPayload = json_decode((string) $called->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertArrayHasKey('result', $callPayload, json_encode($callPayload, JSON_THROW_ON_ERROR));
         self::assertTrue($callPayload['result']['structuredContent']['ok']);
 
         $unsupported = $endpoint->run(
