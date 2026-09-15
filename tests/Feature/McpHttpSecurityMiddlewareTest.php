@@ -44,7 +44,10 @@ final class McpHttpSecurityMiddlewareTest extends TestCase
     {
         $request = $this->request('OPTIONS', 'https://client.example', 'mcp.example');
         $request->headers->set('Access-Control-Request-Method', 'POST');
-        $request->headers->set('Access-Control-Request-Headers', 'Authorization, Mcp-Protocol-Version, Mcp-Method');
+        $request->headers->set(
+            'Access-Control-Request-Headers',
+            'authorization, content-type, mcp-protocol-version, mcp-method, mcp-name',
+        );
         $called = false;
 
         $response = $this->middleware()->handle($request, function () use (&$called): Response {
@@ -56,8 +59,13 @@ final class McpHttpSecurityMiddlewareTest extends TestCase
         self::assertFalse($called);
         self::assertSame(204, $response->getStatusCode());
         self::assertSame('https://client.example', $response->headers->get('Access-Control-Allow-Origin'));
-        self::assertStringContainsString('Authorization', (string) $response->headers->get('Access-Control-Allow-Headers'));
-        self::assertStringContainsString('Mcp-Method', (string) $response->headers->get('Access-Control-Allow-Headers'));
+        $allowedHeaders = array_map('trim', explode(',', (string) $response->headers->get('Access-Control-Allow-Headers')));
+        self::assertContains('Authorization', $allowedHeaders);
+        self::assertContains('Content-Type', $allowedHeaders);
+        self::assertContains('Mcp-Protocol-Version', $allowedHeaders);
+        self::assertContains('Mcp-Method', $allowedHeaders);
+        self::assertContains('Mcp-Name', $allowedHeaders);
+        self::assertCount(count(array_unique(array_map('strtolower', $allowedHeaders))), $allowedHeaders);
         self::assertStringContainsString('Origin', (string) $response->headers->get('Vary'));
         $this->assertPrivateResponse($response);
     }
@@ -74,6 +82,39 @@ final class McpHttpSecurityMiddlewareTest extends TestCase
         $this->assertPrivateResponse($response);
     }
 
+    public function test_preflight_with_unapproved_header_fails_without_cors_permission(): void
+    {
+        $request = $this->request('OPTIONS', 'https://client.example', 'mcp.example');
+        $request->headers->set('Access-Control-Request-Method', 'POST');
+        $request->headers->set('Access-Control-Request-Headers', 'Authorization, Mcp-Name, X-Mcp-Secret');
+        $called = false;
+
+        $response = $this->middleware()->handle($request, function () use (&$called): Response {
+            $called = true;
+
+            return new Response;
+        });
+
+        self::assertFalse($called);
+        self::assertSame(204, $response->getStatusCode());
+        self::assertFalse($response->headers->has('Access-Control-Allow-Origin'));
+        self::assertFalse($response->headers->has('Access-Control-Allow-Headers'));
+        $this->assertPrivateResponse($response);
+    }
+
+    public function test_header_lists_are_deduplicated_case_insensitively_without_rewriting_spelling(): void
+    {
+        $policy = new McpHttpPolicy(
+            allowedOrigins: [],
+            allowedHosts: ['mcp.example'],
+            allowedHeaders: ['Mcp-Name', 'mcp-name', 'MCP-METHOD', 'Mcp-Method'],
+            exposedHeaders: ['Mcp-Name', 'MCP-NAME', 'WWW-Authenticate', 'www-authenticate'],
+        );
+
+        self::assertSame(['Mcp-Name', 'MCP-METHOD'], $policy->allowedHeaders);
+        self::assertSame(['Mcp-Name', 'WWW-Authenticate'], $policy->exposedHeaders);
+    }
+
     public function test_oauth_challenge_is_private_and_exposed_to_an_allowed_browser(): void
     {
         $response = $this->middleware()->handle(
@@ -88,6 +129,7 @@ final class McpHttpSecurityMiddlewareTest extends TestCase
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('https://client.example', $response->headers->get('Access-Control-Allow-Origin'));
         self::assertStringContainsString('WWW-Authenticate', (string) $response->headers->get('Access-Control-Expose-Headers'));
+        self::assertStringContainsString('Mcp-Name', (string) $response->headers->get('Access-Control-Expose-Headers'));
         self::assertNotNull($response->headers->get('WWW-Authenticate'));
         $this->assertPrivateResponse($response);
     }

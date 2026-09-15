@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Allow and expose the MCP 2026 `Mcp-Name` HTTP header by default so approved
+  browser clients can preflight `tools/call` and `resources/read` requests.
+- Deduplicate configured CORS method/header lists case-insensitively while
+  preserving the first configured spelling.
+
 ## 0.2.0
 
 - Add the reusable hardened Laravel MCP HTTP policy, middleware, endpoint, and
