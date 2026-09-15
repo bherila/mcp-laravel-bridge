@@ -2,11 +2,10 @@
 
 namespace Bherila\McpLaravelBridge\Mcp;
 
-use Mcp\Capability\Discovery\SchemaValidator;
 use Psr\Log\LoggerInterface;
 
 /** Validates original JSON shapes before associative SDK decoding loses them. */
-final class OriginalShapeSchemaValidator extends SchemaValidator
+final class OriginalShapeSchemaValidator extends LocalOnlySchemaValidator
 {
     public function __construct(LoggerInterface $logger, private readonly RequestArguments $requestArguments)
     {

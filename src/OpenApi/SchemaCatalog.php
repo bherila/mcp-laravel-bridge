@@ -227,7 +227,10 @@ final class SchemaCatalog
     {
         $rewritten = [];
         foreach ($node as $key => $value) {
-            if ($key === '$ref' && is_string($value) && str_starts_with($value, self::REF_PREFIX)) {
+            if (in_array($key, ['$ref', '$dynamicRef', '$recursiveRef'], true) && is_string($value)) {
+                if ($key !== '$ref' || ! str_starts_with($value, self::REF_PREFIX)) {
+                    throw new InvalidArgumentException('Unsupported response schema reference.');
+                }
                 $rewritten[$key] = '#/$defs/'.substr($value, strlen(self::REF_PREFIX));
             } else {
                 $rewritten[$key] = $this->rewriteValue($value);

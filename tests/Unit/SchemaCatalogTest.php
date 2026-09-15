@@ -38,4 +38,12 @@ final class SchemaCatalogTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->catalog->forOperation('missing.operation');
     }
+
+    public function test_it_rejects_external_references_in_openapi_components(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unsupported response schema reference');
+
+        (new SchemaCatalog(__DIR__.'/../Fixtures/openapi-external.json'))->forOperation('things.list');
+    }
 }

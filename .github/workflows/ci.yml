@@ -18,6 +18,10 @@ jobs:
         include:
           - php: '8.3'
             dependencies: 'lowest'
+          - php: '8.3'
+            dependencies: 'sdk-0.7'
+          - php: '8.5'
+            dependencies: 'sdk-0.8'
     steps:
       - uses: actions/checkout@v6
       - uses: shivammathur/setup-php@v2
@@ -31,4 +35,10 @@ jobs:
       - name: Install lowest dependencies
         if: matrix.dependencies == 'lowest'
         run: composer update --no-interaction --prefer-dist --prefer-lowest
+      - name: Install SDK 0.7 compatibility dependencies
+        if: matrix.dependencies == 'sdk-0.7'
+        run: composer require --no-interaction --prefer-dist --with-all-dependencies 'mcp/sdk:^0.7.1'
+      - name: Install SDK 0.8 compatibility dependencies
+        if: matrix.dependencies == 'sdk-0.8'
+        run: composer require --no-interaction --prefer-dist --with-all-dependencies 'mcp/sdk:^0.8.0'
       - run: composer test
