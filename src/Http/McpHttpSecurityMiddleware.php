@@ -3,10 +3,12 @@
 namespace Bherila\McpLaravelBridge\Http;
 
 use Closure;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 /** Laravel edge enforcement shared by every public MCP endpoint. */
 final readonly class McpHttpSecurityMiddleware
@@ -22,7 +24,10 @@ final readonly class McpHttpSecurityMiddleware
         'token',
     ];
 
-    public function __construct(private McpHttpPolicy $policy) {}
+    public function __construct(
+        private McpHttpPolicy $policy,
+        private ?ExceptionHandler $exceptions = null,
+    ) {}
 
     /** @param Closure(Request): Response $next */
     public function handle(Request $request, Closure $next): Response
@@ -43,7 +48,16 @@ final readonly class McpHttpSecurityMiddleware
             return $this->secure($this->preflight(), $origin, true);
         }
 
-        $response = $next($request);
+        try {
+            $response = $next($request);
+        } catch (Throwable $exception) {
+            if ($this->exceptions === null) {
+                throw $exception;
+            }
+
+            $this->exceptions->report($exception);
+            $response = $this->exceptions->render($request, $exception);
+        }
         if (! $response instanceof Response) {
             $response = new JsonResponse(['message' => 'The MCP endpoint returned an invalid response.'], 500);
         }

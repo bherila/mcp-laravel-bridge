@@ -4,6 +4,8 @@ namespace Bherila\McpLaravelBridge\Tests\Feature;
 
 use Bherila\McpLaravelBridge\Http\McpHttpPolicy;
 use Bherila\McpLaravelBridge\Http\McpHttpSecurityMiddleware;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
 use Orchestra\Testbench\TestCase;
@@ -87,6 +89,26 @@ final class McpHttpSecurityMiddlewareTest extends TestCase
         self::assertSame('https://client.example', $response->headers->get('Access-Control-Allow-Origin'));
         self::assertStringContainsString('WWW-Authenticate', (string) $response->headers->get('Access-Control-Expose-Headers'));
         self::assertNotNull($response->headers->get('WWW-Authenticate'));
+        $this->assertPrivateResponse($response);
+    }
+
+    public function test_laravel_authentication_exception_is_rendered_inside_the_security_pipeline(): void
+    {
+        $middleware = new McpHttpSecurityMiddleware(
+            new McpHttpPolicy(['https://client.example'], ['mcp.example']),
+            $this->app->make(ExceptionHandler::class),
+        );
+
+        $response = $middleware->handle(
+            $this->request(origin: 'https://client.example', host: 'mcp.example'),
+            static function (): never {
+                throw new AuthenticationException('Unauthenticated.');
+            },
+        );
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertSame('https://client.example', $response->headers->get('Access-Control-Allow-Origin'));
+        self::assertStringContainsString('WWW-Authenticate', (string) $response->headers->get('Access-Control-Expose-Headers'));
         $this->assertPrivateResponse($response);
     }
 
