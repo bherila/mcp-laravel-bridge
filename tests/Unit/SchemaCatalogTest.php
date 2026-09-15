@@ -42,7 +42,7 @@ final class SchemaCatalogTest extends TestCase
     public function test_it_rejects_external_references_in_openapi_components(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported non-local response schema reference');
+        $this->expectExceptionMessage('Unsupported response schema reference');
 
         (new SchemaCatalog(__DIR__.'/../Fixtures/openapi-external.json'))->forOperation('things.list');
     }

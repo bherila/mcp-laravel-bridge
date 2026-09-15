@@ -25,13 +25,17 @@ class LocalOnlySchemaValidator extends SchemaValidator
     {
         $unsafeReference = $this->firstExternalReference($schema);
         if ($unsafeReference !== null) {
+            $scheme = strtolower((string) parse_url($unsafeReference['value'], PHP_URL_SCHEME));
             $this->safeLogger->warning('MCP schema validation rejected an external reference.', [
-                'scheme' => parse_url($unsafeReference, PHP_URL_SCHEME) ?: 'relative',
+                'kind' => $unsafeReference['keyword'],
+                'scheme' => in_array($scheme, ['http', 'https', 'file'], true)
+                    ? $scheme
+                    : ($scheme === '' ? 'relative' : 'other'),
             ]);
 
             return [[
                 'pointer' => '',
-                'keyword' => '$ref',
+                'keyword' => $unsafeReference['keyword'],
                 'message' => 'External JSON Schema references are not supported.',
             ]];
         }
@@ -39,7 +43,8 @@ class LocalOnlySchemaValidator extends SchemaValidator
         return parent::validateAgainstJsonSchema($data, $schema);
     }
 
-    private function firstExternalReference(mixed $node): ?string
+    /** @return array{keyword: string, value: string}|null */
+    private function firstExternalReference(mixed $node): ?array
     {
         if (is_object($node)) {
             $node = get_object_vars($node);
@@ -49,8 +54,9 @@ class LocalOnlySchemaValidator extends SchemaValidator
         }
 
         foreach ($node as $key => $value) {
-            if ($key === '$ref' && is_string($value) && ! str_starts_with($value, '#')) {
-                return $value;
+            if (in_array($key, ['$ref', '$dynamicRef', '$recursiveRef'], true)
+                && is_string($value) && ! str_starts_with($value, '#')) {
+                return ['keyword' => $key, 'value' => $value];
             }
             $nested = $this->firstExternalReference($value);
             if ($nested !== null) {

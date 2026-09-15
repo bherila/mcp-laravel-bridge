@@ -227,9 +227,9 @@ final class SchemaCatalog
     {
         $rewritten = [];
         foreach ($node as $key => $value) {
-            if ($key === '$ref' && is_string($value)) {
-                if (! str_starts_with($value, self::REF_PREFIX)) {
-                    throw new InvalidArgumentException("Unsupported non-local response schema reference [{$value}].");
+            if (in_array($key, ['$ref', '$dynamicRef', '$recursiveRef'], true) && is_string($value)) {
+                if ($key !== '$ref' || ! str_starts_with($value, self::REF_PREFIX)) {
+                    throw new InvalidArgumentException('Unsupported response schema reference.');
                 }
                 $rewritten[$key] = '#/$defs/'.substr($value, strlen(self::REF_PREFIX));
             } else {

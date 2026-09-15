@@ -54,6 +54,16 @@ final class LocalOnlySchemaValidatorTest extends TestCase
 
         self::assertSame([], $errors);
     }
+
+    public function test_external_dynamic_reference_is_rejected(): void
+    {
+        $errors = (new LocalOnlySchemaValidator)->validateAgainstJsonSchema(
+            'safe',
+            ['$dynamicRef' => 'https://schemas.example.test/value'],
+        );
+
+        self::assertSame('$dynamicRef', $errors[0]['keyword']);
+    }
 }
 
 final class SchemaRecordingLogger extends AbstractLogger
