@@ -49,7 +49,7 @@ class LocalOnlySchemaValidator extends SchemaValidator
         }
 
         foreach ($node as $key => $value) {
-            if ($key === '$ref' && is_string($value) && ! str_starts_with($value, '#/')) {
+            if ($key === '$ref' && is_string($value) && ! str_starts_with($value, '#')) {
                 return $value;
             }
             $nested = $this->firstExternalReference($value);

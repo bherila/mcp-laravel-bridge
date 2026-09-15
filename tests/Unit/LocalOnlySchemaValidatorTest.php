@@ -42,6 +42,18 @@ final class LocalOnlySchemaValidatorTest extends TestCase
         self::assertStringNotContainsString($reference, $encodedLogs);
         self::assertStringContainsString('file', $encodedLogs);
     }
+
+    public function test_local_anchor_reference_is_not_treated_as_external(): void
+    {
+        $validator = new LocalOnlySchemaValidator;
+
+        $errors = $validator->validateAgainstJsonSchema(
+            'safe',
+            ['$defs' => ['value' => ['$anchor' => 'value', 'type' => 'string']], '$ref' => '#value'],
+        );
+
+        self::assertSame([], $errors);
+    }
 }
 
 final class SchemaRecordingLogger extends AbstractLogger

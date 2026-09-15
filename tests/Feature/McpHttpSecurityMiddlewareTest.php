@@ -42,7 +42,7 @@ final class McpHttpSecurityMiddlewareTest extends TestCase
     {
         $request = $this->request('OPTIONS', 'https://client.example', 'mcp.example');
         $request->headers->set('Access-Control-Request-Method', 'POST');
-        $request->headers->set('Access-Control-Request-Headers', 'Authorization, Mcp-Protocol-Version');
+        $request->headers->set('Access-Control-Request-Headers', 'Authorization, Mcp-Protocol-Version, Mcp-Method');
         $called = false;
 
         $response = $this->middleware()->handle($request, function () use (&$called): Response {
@@ -55,6 +55,7 @@ final class McpHttpSecurityMiddlewareTest extends TestCase
         self::assertSame(204, $response->getStatusCode());
         self::assertSame('https://client.example', $response->headers->get('Access-Control-Allow-Origin'));
         self::assertStringContainsString('Authorization', (string) $response->headers->get('Access-Control-Allow-Headers'));
+        self::assertStringContainsString('Mcp-Method', (string) $response->headers->get('Access-Control-Allow-Headers'));
         self::assertStringContainsString('Origin', (string) $response->headers->get('Vary'));
         $this->assertPrivateResponse($response);
     }

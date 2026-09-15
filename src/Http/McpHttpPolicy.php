@@ -38,10 +38,12 @@ final readonly class McpHttpPolicy
             'Authorization',
             'Content-Type',
             'Last-Event-ID',
+            'Mcp-Method',
             'Mcp-Protocol-Version',
             'Mcp-Session-Id',
         ],
         array $exposedHeaders = [
+            'Mcp-Method',
             'Mcp-Protocol-Version',
             'Mcp-Session-Id',
             'WWW-Authenticate',
