@@ -161,7 +161,8 @@ $tool = new ToolWithSecuritySchemes(
     ]],
     name: 'records.list',
     title: 'List records',
-    inputSchema: ['type' => 'object', 'properties' => []],
+    // Empty JSON object schemas must remain objects on SDK 0.7.
+    inputSchema: ['type' => 'object', 'properties' => (object) []],
     description: 'Lists authorized records.',
     annotations: $annotations,
 );
