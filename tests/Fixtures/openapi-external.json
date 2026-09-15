@@ -1,0 +1,30 @@
+{
+    "openapi": "3.1.0",
+    "info": {"title": "Unsafe fixture", "version": "1.0.0"},
+    "paths": {
+        "/things": {
+            "get": {
+                "operationId": "things.list",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/Envelope"}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Envelope": {
+                "type": "object",
+                "properties": {
+                    "data": {"$ref": "https://schemas.example.test/private.json"}
+                }
+            }
+        }
+    }
+}

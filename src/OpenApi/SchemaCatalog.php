@@ -227,7 +227,10 @@ final class SchemaCatalog
     {
         $rewritten = [];
         foreach ($node as $key => $value) {
-            if ($key === '$ref' && is_string($value) && str_starts_with($value, self::REF_PREFIX)) {
+            if ($key === '$ref' && is_string($value)) {
+                if (! str_starts_with($value, self::REF_PREFIX)) {
+                    throw new InvalidArgumentException("Unsupported non-local response schema reference [{$value}].");
+                }
                 $rewritten[$key] = '#/$defs/'.substr($value, strlen(self::REF_PREFIX));
             } else {
                 $rewritten[$key] = $this->rewriteValue($value);

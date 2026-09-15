@@ -4,6 +4,7 @@ namespace Bherila\McpLaravelBridge\Tests\Unit;
 
 use Bherila\McpLaravelBridge\Mcp\CredentialSessionNamespace;
 use Illuminate\Http\Request;
+use LogicException;
 use PHPUnit\Framework\TestCase;
 
 final class CredentialSessionNamespaceTest extends TestCase
@@ -24,5 +25,12 @@ final class CredentialSessionNamespaceTest extends TestCase
         );
         self::assertStringStartsWith('app_', CredentialSessionNamespace::prefix($first, 'app_'));
         self::assertStringNotContainsString('first-token', CredentialSessionNamespace::prefix($first, 'app_'));
+    }
+
+    public function test_missing_credentials_cannot_share_a_global_session_namespace(): void
+    {
+        $this->expectException(LogicException::class);
+
+        CredentialSessionNamespace::prefix(Request::create('/api/v1/mcp', 'POST'), 'app_');
     }
 }

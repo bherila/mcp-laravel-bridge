@@ -3,6 +3,7 @@
 namespace Bherila\McpLaravelBridge\Mcp;
 
 use Illuminate\Http\Request;
+use LogicException;
 
 final class CredentialSessionNamespace
 {
@@ -28,6 +29,6 @@ final class CredentialSessionNamespace
             return 'transient-'.spl_object_id($token);
         }
 
-        return 'preflight';
+        throw new LogicException('MCP session storage requires an authenticated credential namespace.');
     }
 }
