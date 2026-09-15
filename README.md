@@ -93,9 +93,11 @@ explicitly instead of trusting arbitrary forwarded headers.
 Query-string bearer tokens/API keys are rejected. The edge never logs request
 arguments, results, credentials, or URLs. Every response is marked private,
 `no-store`, and `nosniff`; approved browser callers receive MCP session/version
-and `WWW-Authenticate` exposure. An unapproved OPTIONS request returns 204 with
-no `Access-Control-Allow-Origin`, while an unapproved non-OPTIONS request is
-rejected before execution.
+plus `Mcp-Method`, `Mcp-Name`, and `WWW-Authenticate` exposure. The default
+preflight policy accepts the corresponding MCP 2026 request headers, including
+`Mcp-Name`; custom header lists are deduplicated case-insensitively. An
+unapproved OPTIONS request returns 204 with no `Access-Control-Allow-Origin`,
+while an unapproved non-OPTIONS request is rejected before execution.
 
 Controllers can either route-register the middleware and use the responder, or
 use `McpHttpEndpoint` as the all-in-one composition:

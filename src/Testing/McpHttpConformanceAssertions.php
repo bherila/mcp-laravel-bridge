@@ -19,6 +19,7 @@ trait McpHttpConformanceAssertions
     {
         Assert::assertSame($origin, $response->headers->get('Access-Control-Allow-Origin'));
         Assert::assertStringContainsString('Origin', (string) $response->headers->get('Vary'));
+        Assert::assertStringContainsString('Mcp-Name', (string) $response->headers->get('Access-Control-Expose-Headers'));
         Assert::assertStringContainsString('WWW-Authenticate', (string) $response->headers->get('Access-Control-Expose-Headers'));
     }
 }

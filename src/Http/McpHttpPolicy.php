@@ -39,11 +39,13 @@ final readonly class McpHttpPolicy
             'Content-Type',
             'Last-Event-ID',
             'Mcp-Method',
+            'Mcp-Name',
             'Mcp-Protocol-Version',
             'Mcp-Session-Id',
         ],
         array $exposedHeaders = [
             'Mcp-Method',
+            'Mcp-Name',
             'Mcp-Protocol-Version',
             'Mcp-Session-Id',
             'WWW-Authenticate',
@@ -204,13 +206,20 @@ final readonly class McpHttpPolicy
     private static function normalizedTokens(array $values, string $kind, bool $uppercase = true): array
     {
         $normalized = [];
+        $seen = [];
         foreach ($values as $value) {
             if (! is_string($value) || preg_match('/^[!#$%&\'*+.^_`|~0-9A-Za-z-]+$/D', $value) !== 1) {
                 throw new InvalidArgumentException("Invalid MCP CORS {$kind} token.");
             }
-            $normalized[] = $uppercase ? strtoupper($value) : $value;
+            $value = $uppercase ? strtoupper($value) : $value;
+            $comparisonKey = strtolower($value);
+            if (isset($seen[$comparisonKey])) {
+                continue;
+            }
+            $seen[$comparisonKey] = true;
+            $normalized[] = $value;
         }
 
-        return array_values(array_unique($normalized));
+        return $normalized;
     }
 }
