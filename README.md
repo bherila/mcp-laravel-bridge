@@ -107,11 +107,17 @@ public function __invoke(
     McpHttpEndpoint $endpoint,
     McpHttpPolicy $policy,
 ): Response {
-    return $endpoint->run($request, $servers->make($request), $policy);
+    return $endpoint->run(
+        $request,
+        fn (Request $request): Server => $servers->make($request),
+        $policy,
+    );
 }
 ```
 
-Do not apply both integrations to the same route. With route middleware, call
+The server factory form ensures invalid requests and OPTIONS preflights do not
+construct an authenticated server. A preconstructed `Server` remains supported
+for simple endpoints. Do not apply both integrations to the same route. With route middleware, call
 `StreamableHttpResponder::run()` using
 `SdkMiddlewareProfile::forHardenedLaravelEdge()`. SDK 0.7 receives its required
 protocol-version middleware; SDK 0.8+ lets the transport classify the modern

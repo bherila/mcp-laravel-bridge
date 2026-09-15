@@ -2,6 +2,7 @@
 
 namespace Bherila\McpLaravelBridge\Http;
 
+use Closure;
 use Illuminate\Http\Request;
 use Mcp\Server;
 use Symfony\Component\HttpFoundation\Response;
@@ -11,18 +12,23 @@ final readonly class McpHttpEndpoint
 {
     public function __construct(private StreamableHttpResponder $responder) {}
 
-    public function run(Request $request, Server $server, McpHttpPolicy $policy): Response
+    /** @param Server|Closure(Request): Server $server */
+    public function run(Request $request, Server|Closure $server, McpHttpPolicy $policy): Response
     {
         $security = new McpHttpSecurityMiddleware($policy);
 
         return $security->handle(
             $request,
-            fn (Request $request): Response => $this->responder->run(
-                request: $request,
-                server: $server,
-                middleware: SdkMiddlewareProfile::forHardenedLaravelEdge(),
-                maxBodyBytes: $policy->maxRequestBodyBytes,
-            ),
+            function (Request $request) use ($server, $policy): Response {
+                $resolvedServer = $server instanceof Closure ? $server($request) : $server;
+
+                return $this->responder->run(
+                    request: $request,
+                    server: $resolvedServer,
+                    middleware: SdkMiddlewareProfile::forHardenedLaravelEdge(),
+                    maxBodyBytes: $policy->maxRequestBodyBytes,
+                );
+            },
         );
     }
 }

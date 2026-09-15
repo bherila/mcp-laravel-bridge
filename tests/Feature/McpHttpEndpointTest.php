@@ -11,6 +11,7 @@ use Bherila\McpLaravelBridge\Testing\McpHttpConformanceAssertions;
 use Bherila\McpLaravelBridge\Testing\SyntheticMcpServerFactory;
 use Illuminate\Http\Request;
 use Mcp\Schema\Enum\ProtocolVersion;
+use Mcp\Server;
 use Mcp\Server\Transport\Http\Middleware\ProtocolVersionMiddleware;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -124,6 +125,30 @@ final class McpHttpEndpointTest extends TestCase
 
         self::assertSame(400, $response->getStatusCode());
         self::assertPrivateMcpResponse($response);
+    }
+
+    public function test_preflight_does_not_construct_the_server(): void
+    {
+        $called = false;
+        $request = Request::create('/mcp', 'OPTIONS', server: [
+            'HTTP_HOST' => 'mcp.example',
+            'HTTP_ORIGIN' => 'https://client.example',
+            'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
+            'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'Authorization, Mcp-Protocol-Version',
+        ]);
+
+        $response = (new McpHttpEndpoint(new StreamableHttpResponder))->run(
+            $request,
+            static function () use (&$called): Server {
+                $called = true;
+
+                return SyntheticMcpServerFactory::make();
+            },
+            new McpHttpPolicy(['https://client.example'], ['mcp.example']),
+        );
+
+        self::assertSame(204, $response->getStatusCode());
+        self::assertFalse($called);
     }
 
     /** @param array<string, mixed> $message */
