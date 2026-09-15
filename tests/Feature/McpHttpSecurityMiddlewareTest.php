@@ -193,7 +193,11 @@ final class McpHttpSecurityMiddlewareTest extends TestCase
 
     private function request(string $method = 'POST', ?string $origin = null, string $host = 'mcp.example'): Request
     {
-        $server = ['HTTP_HOST' => $host, 'CONTENT_TYPE' => 'application/json'];
+        $server = [
+            'HTTP_HOST' => $host,
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ];
         if ($origin !== null) {
             $server['HTTP_ORIGIN'] = $origin;
         }
