@@ -18,6 +18,8 @@ jobs:
         include:
           - php: '8.3'
             dependencies: 'lowest'
+          - php: '8.5'
+            dependencies: 'psr7-v3'
           - php: '8.3'
             dependencies: 'sdk-0.7'
           - php: '8.5'
@@ -41,4 +43,7 @@ jobs:
       - name: Install SDK 0.8 compatibility dependencies
         if: matrix.dependencies == 'sdk-0.8'
         run: composer require --no-interaction --prefer-dist --with-all-dependencies 'mcp/sdk:^0.8.0'
+      - name: Install PSR-7 version 3
+        if: matrix.dependencies == 'psr7-v3'
+        run: composer update --with 'guzzlehttp/psr7:^3.0' --no-interaction --prefer-dist
       - run: composer test
