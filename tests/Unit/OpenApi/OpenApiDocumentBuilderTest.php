@@ -135,6 +135,18 @@ final class OpenApiDocumentBuilderTest extends TestCase
         self::assertSame(['/health', '/projects/{project}/things', '/things/search'], self::sorted(array_keys($document['paths'])));
     }
 
+    public function test_path_parameters_come_from_the_path_and_a_mismatched_list_is_refused(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::read('things.show', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/projects/{project}/things/{thing}')]));
+        $show = (new OpenApiDocumentBuilder($registry, $this->settings()))->full()['paths']['/projects/{project}/things/{thing}']['get'];
+        self::assertSame(['project', 'thing'], array_column($show['parameters'], 'name'));
+
+        $stale = (new OperationRegistry)->register(Fixtures::read('things.show', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing}', pathParameters: ['id'])]));
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('declares path parameters [id]');
+        (new OpenApiDocumentBuilder($stale, $this->settings()))->full();
+    }
+
     public function test_two_operations_on_one_route_are_refused(): void
     {
         $registry = (new OperationRegistry)->register(

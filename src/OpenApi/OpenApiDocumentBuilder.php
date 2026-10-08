@@ -99,12 +99,13 @@ final class OpenApiDocumentBuilder
         }
         $document['security'] = $this->security($operation);
 
+        $pathParameters = self::pathParameters($operation);
         $parameters = array_map(static fn (string $name): array => [
             'name' => $name,
             'in' => 'path',
             'required' => true,
             'schema' => ['type' => 'string'],
-        ], $rest->pathParameters);
+        ], $pathParameters);
         if (in_array($operation->safety->idempotencyKey, [IdempotencyKey::Header, IdempotencyKey::HeaderAndArgument], true)) {
             $parameters[] = [
                 'name' => 'Idempotency-Key',
@@ -116,7 +117,7 @@ final class OpenApiDocumentBuilder
         }
         $input = $this->schema($operation->input);
         if ($input !== null && in_array($method, ['GET', 'HEAD', 'DELETE'], true)) {
-            array_push($parameters, ...self::queryParameters($input, $rest->pathParameters));
+            array_push($parameters, ...self::queryParameters($input, $pathParameters));
         } elseif ($input !== null) {
             $document['requestBody'] = [
                 'required' => true,
@@ -285,6 +286,25 @@ final class OpenApiDocumentBuilder
         }
 
         return $components;
+    }
+
+    /**
+     * The path's placeholders, which a declared list must match exactly: a
+     * missing one would leave a path without its required parameter, a
+     * stray one would describe a parameter that does not exist.
+     *
+     * @return list<string>
+     */
+    private static function pathParameters(Operation $operation): array
+    {
+        $rest = $operation->rest ?? throw new LogicException("Operation [{$operation->id}] has no REST binding.");
+        preg_match_all('/\{([^}?]+)\??\}/', $rest->path, $matches);
+        $placeholders = $matches[1];
+        if ($rest->pathParameters !== [] && $rest->pathParameters !== $placeholders) {
+            throw new LogicException("Operation [{$operation->id}] declares path parameters [".implode(', ', $rest->pathParameters)."] but its path {$rest->path} has [".implode(', ', $placeholders).'].');
+        }
+
+        return $placeholders;
     }
 
     /**
