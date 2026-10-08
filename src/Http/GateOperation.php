@@ -1,0 +1,56 @@
+<?php
+
+namespace Bherila\McpLaravelBridge\Http;
+
+use Bherila\McpLaravelBridge\Capabilities\Availability;
+use Bherila\McpLaravelBridge\Capabilities\PrincipalResolver;
+use Bherila\McpLaravelBridge\Capabilities\WithheldReason;
+use Closure;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * Route middleware `GateOperation:<operation id>`: the same availability
+ * evaluation that picks MCP tools and filters the OpenAPI document, applied
+ * to the REST call. A withheld operation answers with its reason, so the
+ * client can relay it: 401 when no credential authenticated the caller, 403
+ * (with an RFC 6750 insufficient_scope challenge for a missing scope)
+ * otherwise. Needs `Availability` and a `PrincipalResolver` in the container.
+ */
+final class GateOperation
+{
+    public function __construct(private readonly Container $container) {}
+
+    public function handle(Request $request, Closure $next, string $operationId): Response
+    {
+        $withheld = $this->container->make(Availability::class)->withheld(
+            $this->container->make(PrincipalResolver::class)->principal($request),
+            $operationId,
+        );
+        if ($withheld === null) {
+            return $next($request);
+        }
+
+        $headers = ['Cache-Control' => 'no-store'];
+        $status = 403;
+        $message = 'This operation is not available to this caller.';
+        if ($withheld->reason === WithheldReason::Unauthenticated) {
+            $status = 401;
+            $message = 'Authentication is required.';
+            $headers['WWW-Authenticate'] = 'Bearer';
+        } elseif ($withheld->reason === WithheldReason::MissingScope) {
+            $message = 'This credential lacks the scope this operation needs.';
+            $scopes = str_replace('|', ' ', $withheld->detail);
+            $headers['WWW-Authenticate'] = 'Bearer error="insufficient_scope", scope="'.addcslashes($scopes, '"\\').'"';
+        }
+
+        return new JsonResponse([
+            'message' => $message,
+            'operation' => $operationId,
+            'reason' => $withheld->reason->value,
+            'detail' => $withheld->detail,
+        ], $status, $headers);
+    }
+}
