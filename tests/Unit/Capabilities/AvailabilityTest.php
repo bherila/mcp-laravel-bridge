@@ -77,4 +77,21 @@ final class AvailabilityTest extends TestCase
         self::assertSame('not_a_manager', $withheld?->detail);
         self::assertSame('unknown_operation', $availability->withheld(Fixtures::principal(), 'nope')?->detail);
     }
+
+    public function test_dependency_failures_propagate_through_chains_and_cycles(): void
+    {
+        $registry = (new OperationRegistry)->register(
+            Fixtures::read('a', new Requirement(['s']), ['requiresOperations' => ['b']]),
+            Fixtures::read('b', new Requirement(['s']), ['requiresOperations' => ['c']]),
+            Fixtures::write('c', new Requirement(['s'], flags: ['off'])),
+            Fixtures::read('x', new Requirement(['s']), ['requiresOperations' => ['y']]),
+            Fixtures::read('y', new Requirement(['s']), ['requiresOperations' => ['x']]),
+        );
+        $availability = new Availability($registry, Fixtures::flags(['off' => false]));
+        $principal = Fixtures::principal(scopes: ['s']);
+
+        self::assertSame([], $availability->evaluate($principal)->availableIds());
+        self::assertSame('b', $availability->withheld($principal, 'a')?->detail);
+        self::assertSame('depends_on', $availability->withheld($principal, 'x')?->reason->value);
+    }
 }

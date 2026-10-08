@@ -35,14 +35,11 @@ final class Availability
 
     public function evaluate(Principal $principal): AvailabilityReport
     {
+        $memo = [];
         $available = [];
         $withheld = [];
-        $direct = [];
         foreach ($this->registry->all() as $operation) {
-            $direct[$operation->id] = $this->check($principal, $operation);
-        }
-        foreach ($this->registry->all() as $operation) {
-            $reason = $direct[$operation->id] ?? $this->dependencyFailure($operation, $direct);
+            $reason = $this->resolve($principal, $operation->id, $memo, []);
             if ($reason === null) {
                 $available[] = $operation;
             } else {
@@ -56,23 +53,40 @@ final class Availability
     /** Null when the caller may use the operation now. */
     public function withheld(Principal $principal, string $operationId): ?Withheld
     {
+        $memo = [];
+
+        return $this->resolve($principal, $operationId, $memo, []);
+    }
+
+    /**
+     * An operation's own checks, then its dependencies resolved recursively:
+     * A needing B needing a withheld C is itself withheld. A dependency cycle
+     * withholds everything on it.
+     *
+     * @param  array<string, Withheld|null>  $memo
+     * @param  array<string, true>  $visiting
+     */
+    private function resolve(Principal $principal, string $operationId, array &$memo, array $visiting): ?Withheld
+    {
+        if (array_key_exists($operationId, $memo)) {
+            return $memo[$operationId];
+        }
         $operation = $this->registry->find($operationId);
         if ($operation === null) {
-            return new Withheld($operationId, WithheldReason::Policy, 'unknown_operation');
+            return $memo[$operationId] = new Withheld($operationId, WithheldReason::Policy, 'unknown_operation');
         }
         $direct = $this->check($principal, $operation);
         if ($direct !== null) {
-            return $direct;
+            return $memo[$operationId] = $direct;
         }
-        $dependencies = [];
+        $visiting[$operationId] = true;
         foreach ($operation->requiresOperations as $dependency) {
-            $dependencyOperation = $this->registry->find($dependency);
-            $dependencies[$dependency] = $dependencyOperation === null
-                ? new Withheld($dependency, WithheldReason::Policy, 'unknown_operation')
-                : $this->check($principal, $dependencyOperation);
+            if (isset($visiting[$dependency]) || $this->resolve($principal, $dependency, $memo, $visiting) !== null) {
+                return $memo[$operationId] = new Withheld($operationId, WithheldReason::DependsOn, $dependency);
+            }
         }
 
-        return $this->dependencyFailure($operation, $dependencies);
+        return $memo[$operationId] = null;
     }
 
     private function check(Principal $principal, Operation $operation): ?Withheld
@@ -118,18 +132,6 @@ final class Availability
         foreach ($operation->requirement->flags as $flag) {
             if (! $this->flags->enabled($flag)) {
                 return new Withheld($operation->id, WithheldReason::DeploymentFlag, $flag);
-            }
-        }
-
-        return null;
-    }
-
-    /** @param array<string, Withheld|null> $results */
-    private function dependencyFailure(Operation $operation, array $results): ?Withheld
-    {
-        foreach ($operation->requiresOperations as $dependency) {
-            if (($results[$dependency] ?? null) !== null || ! array_key_exists($dependency, $results)) {
-                return new Withheld($operation->id, WithheldReason::DependsOn, $dependency);
             }
         }
 
