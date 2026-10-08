@@ -23,6 +23,9 @@ use stdClass;
  */
 final class OpenApiDocumentBuilder
 {
+    /** @var array<string, true> components referenced by the document being built */
+    private array $components = [];
+
     public function __construct(
         private readonly OperationRegistry $registry,
         private readonly OpenApiSettings $settings,
@@ -47,6 +50,7 @@ final class OpenApiDocumentBuilder
      */
     private function document(array $operations): array
     {
+        $this->components = [];
         $operations = array_values(array_filter($operations, static fn (Operation $operation): bool => $operation->rest !== null));
         usort($operations, static fn (Operation $a, Operation $b): int => strcmp($a->id, $b->id));
 
@@ -70,7 +74,7 @@ final class OpenApiDocumentBuilder
             'info' => $info,
             'servers' => [['url' => $this->settings->serverUrl]],
             'paths' => $paths === [] ? new stdClass : $paths,
-            'components' => ['securitySchemes' => $this->securitySchemes() ?: new stdClass],
+            'components' => $this->documentComponents(),
         ];
     }
 
@@ -244,16 +248,43 @@ final class OpenApiDocumentBuilder
     }
 
     /**
+     * An inline schema as declared; a document schema as a reference to its
+     * component, which the document then carries with everything it reaches,
+     * so nested references stay resolvable.
+     *
      * @param  array<string, mixed>|SchemaRef|null  $schema
      * @return array<string, mixed>|null
      */
     private function schema(array|SchemaRef|null $schema): ?array
     {
-        if ($schema instanceof SchemaRef) {
-            return $schema->resolve($this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.'));
+        if (! $schema instanceof SchemaRef) {
+            return $schema;
+        }
+        $catalog = $this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.');
+        $component = match (true) {
+            $schema->component !== null => $schema->component,
+            $schema->requestOf !== null => $catalog->requestComponent($schema->requestOf),
+            default => $catalog->operationComponent((string) $schema->responseOf),
+        };
+        $this->components[$component] = true;
+
+        return ['$ref' => '#/components/schemas/'.$component];
+    }
+
+    /** @return array<string, mixed> */
+    private function documentComponents(): array
+    {
+        $components = ['securitySchemes' => $this->securitySchemes() ?: new stdClass];
+        $schemas = [];
+        foreach (array_keys($this->components) as $component) {
+            $schemas += $this->catalog?->componentClosure($component) ?? [];
+        }
+        if ($schemas !== []) {
+            ksort($schemas);
+            $components['schemas'] = $schemas;
         }
 
-        return $schema;
+        return $components;
     }
 
     /**

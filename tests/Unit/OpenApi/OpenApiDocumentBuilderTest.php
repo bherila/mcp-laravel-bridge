@@ -155,10 +155,21 @@ final class OpenApiDocumentBuilderTest extends TestCase
         ]));
         $catalog = new SchemaCatalog(__DIR__.'/../../Fixtures/openapi.json');
 
-        $operation = (new OpenApiDocumentBuilder($registry, $this->settings(), $catalog))->full()['paths']['/things']['post'];
+        $document = (new OpenApiDocumentBuilder($registry, $this->settings(), $catalog))->full();
+        $operation = $document['paths']['/things']['post'];
 
-        self::assertSame($catalog->requestForOperation('things.create'), $operation['requestBody']['content']['application/json']['schema']);
-        self::assertSame($catalog->forOperation('things.create'), $operation['responses']['201']['content']['application/json']['schema']);
+        $request = $operation['requestBody']['content']['application/json']['schema']['$ref'];
+        $response = $operation['responses']['201']['content']['application/json']['schema']['$ref'];
+        self::assertSame('#/components/schemas/'.$catalog->requestComponent('things.create'), $request);
+        self::assertSame('#/components/schemas/'.$catalog->operationComponent('things.create'), $response);
+        // Every reference in the document, including nested ones, resolves within it.
+        $encoded = (string) json_encode($document, JSON_UNESCAPED_SLASHES);
+        preg_match_all('~"\$ref":"#/components/schemas/([^"]+)"~', $encoded, $refs);
+        self::assertGreaterThan(2, count($refs[1]), 'Nested references are present');
+        foreach (array_unique($refs[1]) as $name) {
+            self::assertArrayHasKey($name, $document['components']['schemas'], "Dangling reference to {$name}");
+        }
+        self::assertStringNotContainsString('#/$defs', $encoded);
     }
 
     public function test_differences_compare_with_a_shipped_document(): void
