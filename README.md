@@ -298,7 +298,7 @@ Route::prefix('api/v1')->name('api.')->group(function () {
 });
 ```
 
-`Route::operation()` registers the route from the operation's REST binding, names it after `routeName` or the operation id, and adds `GateOperation:<id>`.
+`Route::operation()` registers the route from the operation's REST binding and adds `GateOperation:<id>`. A declared `routeName` is the route's full name, including any enclosing group's prefix. Without one, the route is named after the operation id. Path parameters come from the path's placeholders and take their schemas from the input.
 
 The middleware evaluates the container's `Availability` for the principal your bound `PrincipalResolver` returns. A withheld operation answers with `{message, operation, reason, detail}`:
 - **401** when no credential authenticated the caller;
