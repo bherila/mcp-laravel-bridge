@@ -207,6 +207,15 @@ final class OpenApiDocumentBuilderTest extends TestCase
         self::assertSame(['type' => 'integer', 'minimum' => 1], $parameters[0]['schema']);
     }
 
+    public function test_an_optional_placeholder_is_refused(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::read('things.list', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing?}')]));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('optional placeholder');
+        (new OpenApiDocumentBuilder($registry, $this->settings()))->full();
+    }
+
     public function test_templates_differing_only_in_placeholder_names_collide(): void
     {
         $registry = (new OperationRegistry)->register(

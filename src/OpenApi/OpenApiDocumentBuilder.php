@@ -353,7 +353,12 @@ final class OpenApiDocumentBuilder
     private static function pathParameters(Operation $operation): array
     {
         $rest = $operation->rest ?? throw new LogicException("Operation [{$operation->id}] has no REST binding.");
-        preg_match_all('/\{([^}?]+)\??\}/', $rest->path, $matches);
+        if (preg_match('/\{[^}]*\?\}/', $rest->path) === 1) {
+            // OpenAPI path parameters are always required; an optional segment
+            // cannot be described, so it is refused rather than misstated.
+            throw new LogicException("Operation [{$operation->id}] binds the optional placeholder in {$rest->path}, which OpenAPI cannot describe; bind each form as its own operation.");
+        }
+        preg_match_all('/\{([^}]+)\}/', $rest->path, $matches);
         $placeholders = $matches[1];
         if ($rest->pathParameters !== [] && $rest->pathParameters !== $placeholders) {
             throw new LogicException("Operation [{$operation->id}] declares path parameters [".implode(', ', $rest->pathParameters)."] but its path {$rest->path} has [".implode(', ', $placeholders).'].');
