@@ -129,11 +129,13 @@ final class OperationToolFactory
         if ($requirement->public) {
             return $connectionScopes === [] ? [['type' => 'noauth']] : [$with([])];
         }
-        if ($requirement->scopeRule === ScopeRule::Any && count($requirement->scopes) > 1) {
-            return array_map(static fn (string $scope): array => $with([$scope]), $requirement->scopes);
+        // Duplicate alternatives would be rejected when the tool is built.
+        $scopes = array_values(array_unique($requirement->scopes));
+        if ($requirement->scopeRule === ScopeRule::Any && count($scopes) > 1) {
+            return array_map(static fn (string $scope): array => $with([$scope]), $scopes);
         }
 
-        return [$with($requirement->scopes)];
+        return [$with($scopes)];
     }
 
     /**

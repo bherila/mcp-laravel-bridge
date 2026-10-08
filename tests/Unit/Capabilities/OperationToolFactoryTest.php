@@ -127,4 +127,16 @@ final class OperationToolFactoryTest extends TestCase
         ], $tool['securitySchemes']);
         self::assertSame([['type' => 'oauth2', 'scopes' => ['mcp:use']]], OperationToolFactory::securitySchemes(Fixtures::read('health', Requirement::publicAccess()), ['mcp:use']));
     }
+
+    public function test_a_repeated_any_scope_yields_one_alternative_and_a_buildable_tool(): void
+    {
+        $operation = Fixtures::read('things.search', new Requirement(['things:read', 'search:use', 'things:read'], ScopeRule::Any));
+
+        $tool = json_decode((string) json_encode((new OperationToolFactory)->tool($operation)), true);
+        self::assertSame([['type' => 'oauth2', 'scopes' => ['things:read']], ['type' => 'oauth2', 'scopes' => ['search:use']]], $tool['securitySchemes']);
+        self::assertSame(
+            [['type' => 'oauth2', 'scopes' => ['things:read']]],
+            OperationToolFactory::securitySchemes(Fixtures::read('x', new Requirement(['things:read', 'things:read'], ScopeRule::Any))),
+        );
+    }
 }
