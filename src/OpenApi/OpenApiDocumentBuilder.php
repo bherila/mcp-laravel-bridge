@@ -268,7 +268,7 @@ final class OpenApiDocumentBuilder
     private function schema(array|SchemaRef|null $schema): ?array
     {
         if (! $schema instanceof SchemaRef) {
-            return $schema;
+            return $schema === null ? null : self::objectMaps($schema);
         }
         $catalog = $this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.');
         $component = match (true) {
@@ -291,10 +291,31 @@ final class OpenApiDocumentBuilder
         }
         if ($schemas !== []) {
             ksort($schemas);
-            $components['schemas'] = $schemas;
+            $components['schemas'] = self::objectMaps($schemas);
         }
 
         return $components;
+    }
+
+    /**
+     * A decoded `"properties": {}` is an empty PHP array and would encode as
+     * `[]`, which JSON Schema rejects; restore schema maps as objects at every
+     * depth.
+     *
+     * @param  array<array-key, mixed>  $schema
+     * @return array<array-key, mixed>
+     */
+    private static function objectMaps(array $schema): array
+    {
+        foreach ($schema as $key => $value) {
+            if (in_array($key, ['properties', 'patternProperties', '$defs', 'dependentSchemas'], true) && $value === []) {
+                $schema[$key] = new stdClass;
+            } elseif (is_array($value)) {
+                $schema[$key] = self::objectMaps($value);
+            }
+        }
+
+        return $schema;
     }
 
     /**

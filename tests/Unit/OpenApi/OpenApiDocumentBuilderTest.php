@@ -166,6 +166,20 @@ final class OpenApiDocumentBuilderTest extends TestCase
         (new OpenApiDocumentBuilder($registry, $this->settings()))->full();
     }
 
+    public function test_empty_schema_maps_encode_as_objects(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::write('things.ping', new Requirement(['things:write']), [
+            'rest' => new RestBinding('POST', '/things/ping'),
+            'input' => ['type' => 'object', 'additionalProperties' => false, 'properties' => []],
+            'output' => ['type' => 'object', 'properties' => ['meta' => ['type' => 'object', 'properties' => []]]],
+        ]));
+
+        $json = (string) json_encode((new OpenApiDocumentBuilder($registry, $this->settings()))->full());
+
+        self::assertStringNotContainsString('"properties":[]', $json);
+        self::assertSame(2, substr_count($json, '"properties":{}') / 2, 'Request and response bodies each carry both media types');
+    }
+
     public function test_two_operations_on_one_route_are_refused(): void
     {
         $registry = (new OperationRegistry)->register(
