@@ -10,6 +10,8 @@ final class SchemaCatalog
 {
     private const string REF_PREFIX = '#/components/schemas/';
 
+    private const array HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
+
     /** @var array<string, mixed>|null */
     private ?array $document = null;
 
@@ -101,7 +103,9 @@ final class SchemaCatalog
         $operations = [];
         foreach ($this->document()['paths'] ?? [] as $path => $item) {
             foreach (is_array($item) ? $item : [] as $method => $operation) {
-                if (! is_array($operation) || ! is_string($operation['operationId'] ?? null)) {
+                // Only HTTP methods: a path item's parameters, servers or an
+                // object-valued x- extension is never an operation.
+                if (! in_array($method, self::HTTP_METHODS, true) || ! is_array($operation) || ! is_string($operation['operationId'] ?? null)) {
                     continue;
                 }
                 $security = $operation['security'] ?? null;

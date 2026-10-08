@@ -54,6 +54,7 @@ final class SchemaCatalogTest extends TestCase
             '/things' => [
                 'get' => ['operationId' => 'things.list', 'summary' => 'List things', 'security' => [['oauth2' => ['things:read']], ['apiToken' => []]]],
                 'parameters' => [],
+                'x-codegen' => ['operationId' => 'metadata'],
             ],
             '/health' => ['get' => ['operationId' => 'health.get', 'security' => []]],
             '/token' => ['delete' => ['operationId' => 'token.revoke', 'security' => [['oauth2' => []]]]],
