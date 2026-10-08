@@ -96,4 +96,22 @@ final class OperationToolFactoryTest extends TestCase
         self::assertTrue(Fixtures::write('things.keyed', new Requirement(['s']))->isIdempotent(), 'A declared idempotency key makes it idempotent');
         self::assertTrue(Fixtures::write('things.natural', new Requirement(['s']), ['safety' => new \Bherila\McpLaravelBridge\Capabilities\WriteSafety(confirm: true), 'idempotent' => true])->isIdempotent(), 'Explicit wins');
     }
+
+    public function test_an_operation_without_inputs_serializes_properties_as_an_object(): void
+    {
+        $handlerless = Fixtures::read('things.ping', new Requirement(['s']), ['mcp' => new McpBinding]);
+        $json = (string) json_encode((new OperationToolFactory)->tool($handlerless));
+
+        self::assertStringContainsString('"properties":{}', $json);
+        self::assertStringNotContainsString('"properties":[]', $json);
+    }
+
+    public function test_non_tool_bindings_are_refused(): void
+    {
+        $resource = Fixtures::read('things.doc', new Requirement(['s']), ['mcp' => new McpBinding(kind: \Bherila\McpLaravelBridge\Capabilities\McpKind::Resource, uri: 'thing://doc')]);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('not a tool');
+        (new OperationToolFactory)->tool($resource);
+    }
 }

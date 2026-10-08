@@ -70,7 +70,7 @@ final class OperationToolFactory
     {
         $mcp = $this->binding($operation);
         $declared = $this->resolve($operation->input);
-        $schema = $mcp->handler !== null ? $this->reflected->for($mcp->handler) : ['type' => 'object', 'properties' => []];
+        $schema = $mcp->handler !== null ? $this->reflected->for($mcp->handler) : ['type' => 'object', 'properties' => new \stdClass, 'additionalProperties' => false];
         if ($declared === null) {
             return $schema;
         }
@@ -94,6 +94,10 @@ final class OperationToolFactory
         }
         $schema['type'] = 'object';
         $schema['additionalProperties'] = false;
+        if ($schema['properties'] === []) {
+            // `properties` must serialize as a JSON object, never [].
+            $schema['properties'] = new \stdClass;
+        }
 
         return $schema;
     }
@@ -138,6 +142,13 @@ final class OperationToolFactory
 
     private function binding(Operation $operation): McpBinding
     {
-        return $operation->mcp ?? throw new LogicException("Operation [{$operation->id}] is not exposed over MCP.");
+        $mcp = $operation->mcp ?? throw new LogicException("Operation [{$operation->id}] is not exposed over MCP.");
+        if ($mcp->kind !== McpKind::Tool) {
+            // A resource, template or prompt emitted as a tool would expose the
+            // wrong protocol surface and silently drop its kind and URI.
+            throw new LogicException("Operation [{$operation->id}] is an MCP {$mcp->kind->value}, not a tool.");
+        }
+
+        return $mcp;
     }
 }
