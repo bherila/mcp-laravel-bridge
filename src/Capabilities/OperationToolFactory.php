@@ -27,20 +27,28 @@ final class OperationToolFactory
         private readonly array $connectionScopes = [],
     ) {}
 
-    /** The existing ToolDefinition shape, for applications that build their server from it. */
+    /**
+     * The existing ToolDefinition shape, for applications that build their
+     * server from it. Its operation IDs name the document operations whose
+     * request and response schemas apply, so they follow the declared
+     * references when those point at a differently named operation.
+     */
     public function definition(Operation $operation): ToolDefinition
     {
         $mcp = $this->binding($operation);
+        $request = $operation->input instanceof SchemaRef ? $operation->input->requestOf : null;
+        $response = $operation->output instanceof SchemaRef ? $operation->output->responseOf : null;
 
         return new ToolDefinition(
             name: (string) $operation->mcpName(),
             title: $operation->title,
             description: $operation->description,
             handler: $mcp->handler ?? throw new LogicException("Operation [{$operation->id}] has no MCP handler."),
-            operationId: $operation->id,
+            operationId: $request ?? $operation->id,
             readOnly: $operation->effect->readOnly(),
             destructive: $operation->effect->destructive(),
             idempotent: $operation->isIdempotent(),
+            responseOperationId: $response,
         );
     }
 

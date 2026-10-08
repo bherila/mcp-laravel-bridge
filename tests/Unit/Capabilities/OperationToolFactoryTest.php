@@ -150,4 +150,21 @@ final class OperationToolFactoryTest extends TestCase
         self::assertStringContainsString('"properties":{}', $json);
         self::assertStringNotContainsString('"properties":[]', $json);
     }
+
+    public function test_a_definition_names_the_document_operations_its_schemas_come_from(): void
+    {
+        $factory = new OperationToolFactory;
+        $operation = Fixtures::write('things.make', new Requirement(['things:write']), [
+            'input' => SchemaRef::requestOf('things.create'),
+            'output' => SchemaRef::responseOf('things.show'),
+        ]);
+
+        $definition = $factory->definition($operation);
+        self::assertSame('things.create', $definition->operationId());
+        self::assertSame('things.show', $definition->responseOperationId());
+
+        $inline = $factory->definition(Fixtures::read('things.list', new Requirement(['things:read'])));
+        self::assertSame('things.list', $inline->operationId());
+        self::assertSame('things.list', $inline->responseOperationId());
+    }
 }
