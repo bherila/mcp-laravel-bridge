@@ -21,6 +21,11 @@ final class OperationRoutes
     {
         $operation = $registry->find($operationId) ?? throw new InvalidOperation("Operation [{$operationId}] is not registered.");
         $rest = $operation->rest ?? throw new InvalidOperation("Operation [{$operationId}] has no REST binding.");
+        if (str_contains($operationId, ',')) {
+            // Laravel splits middleware parameters on commas, so the gate would
+            // receive a fragment of the id.
+            throw new InvalidOperation("Operation [{$operationId}] cannot be routed: its id contains a comma.");
+        }
 
         // A declared route name is the route's full name, as the contract
         // assertion looks it up; inside a named group, only the part after

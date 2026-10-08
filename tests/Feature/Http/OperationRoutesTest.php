@@ -128,6 +128,15 @@ final class OperationRoutesTest extends TestCase
         Route::name('web.')->group(static fn () => Route::operation('things.show', static fn () => []));
     }
 
+    public function test_an_operation_id_with_a_comma_cannot_be_routed(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::read('reports,daily', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/reports/daily')]));
+
+        $this->expectException(InvalidOperation::class);
+        $this->expectExceptionMessage('contains a comma');
+        OperationRoutes::register($registry, 'reports,daily', static fn () => []);
+    }
+
     public function test_an_operation_without_a_rest_binding_cannot_be_routed(): void
     {
         $this->expectException(InvalidOperation::class);
