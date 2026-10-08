@@ -102,7 +102,8 @@ final class SchemaCatalog
     {
         $operations = [];
         foreach ($this->document()['paths'] ?? [] as $path => $item) {
-            foreach (is_array($item) ? $item : [] as $method => $operation) {
+            $item = $this->pathItem($item, (string) $path);
+            foreach ($item as $method => $operation) {
                 // Only HTTP methods: a path item's parameters, servers or an
                 // object-valued x- extension is never an operation.
                 if (! in_array($method, self::HTTP_METHODS, true) || ! is_array($operation) || ! is_string($operation['operationId'] ?? null)) {
@@ -120,6 +121,34 @@ final class SchemaCatalog
         }
 
         return $operations;
+    }
+
+    /**
+     * A path item, following a local `$ref` into components.pathItems (OpenAPI
+     * 3.1). Any other reference is refused rather than read as no operations.
+     *
+     * @return array<string, mixed>
+     */
+    private function pathItem(mixed $item, string $path): array
+    {
+        $seen = [];
+        while (is_array($item) && is_string($item['$ref'] ?? null)) {
+            $ref = $item['$ref'];
+            $prefix = '#/components/pathItems/';
+            if (! str_starts_with($ref, $prefix) || isset($seen[$ref])) {
+                throw new InvalidArgumentException("Path [{$path}] references [{$ref}], which is not a resolvable local path item.");
+            }
+            $seen[$ref] = true;
+            $name = str_replace(['~1', '~0'], ['/', '~'], substr($ref, strlen($prefix)));
+            $target = $this->document()['components']['pathItems'][$name] ?? null;
+            if (! is_array($target)) {
+                throw new InvalidArgumentException("Path [{$path}] references missing path item [{$ref}].");
+            }
+            // Sibling fields beside a Path Item $ref override the referenced ones.
+            $item = [...$target, ...array_diff_key($item, ['$ref' => true])];
+        }
+
+        return is_array($item) ? $item : [];
     }
 
     public function flush(): void
