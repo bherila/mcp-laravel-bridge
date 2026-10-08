@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased (0.4.0)
+
+- **`OpenApiDocumentBuilder` and `OpenApiSettings`** generate the REST contract from the registry. The document includes:
+  - installation URLs from configuration;
+  - security alternatives per requirement, with API tokens except on MCP-connection operations;
+  - query parameters for read inputs, and request bodies in every configured media type;
+  - an `Idempotency-Key` header parameter;
+  - `x-` extensions.
+
+  It has `full()` and `filtered()` modes. `differences()` and `write()` let a spec-first application move onto generation once its shipped document matches.
+- **`OperationRoutes` / `Route::operation()`** registers routes from REST bindings. **`GateOperation`** answers a withheld operation with its reason: 401 when unauthenticated, otherwise 403 with an `insufficient_scope` challenge. It needs a bound **`PrincipalResolver`**.
+- **`OperationRegistryAssertions`** test helpers cover the registry contract, web route classification, the scope inventory and visibility snapshots.
+
 ## 0.3.1 - 2026-10-08
 
 From the first spec-first adopter:

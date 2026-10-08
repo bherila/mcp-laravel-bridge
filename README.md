@@ -258,3 +258,63 @@ $registry = (new OperationRegistry)->register(new Operation(
 - **Deriving an operation:** `$operation->with(rest: new RestBinding('GET', '/things'))` returns a copy with those fields replaced and every other field kept.
 - **Spec-first:** `SchemaCatalog::operations()` lists every documented operation with its method, path and `security` as written. `security` is `[]` when explicitly public and `null` when absent. Use it to register the REST operations no tool fronts.
 - **Contract test:** pin `$registry->contractViolations() === []` in a test.
+
+### OpenAPI document
+
+`OpenApiDocumentBuilder` generates the REST contract from the registry. Every URL comes from `OpenApiSettings`, so take them from the application's configuration, never a literal host:
+
+```php
+$builder = new OpenApiDocumentBuilder($registry, new OpenApiSettings(
+    title: 'Things API',
+    version: '1',
+    serverUrl: config('bherila-auth.oauth_server.resource'),
+    authorizationUrl: config('bherila-auth.oauth_server.authorization_endpoint'),
+    tokenUrl: config('bherila-auth.oauth_server.token_endpoint'),
+    scopes: Scopes::descriptions(),
+    connectionScopes: ['mcp:use'],        // operations needing these are OAuth-only
+    extraMediaTypes: ['application/toon'], // optional, beside application/json
+), $catalog);                              // a SchemaCatalog when operations use SchemaRef
+
+return response()->json($builder->full()); // or ->filtered($availability, $principal)
+```
+
+- **Security:** each operation lists its alternatives.
+  - OAuth with all the scopes at once, or one alternative per scope for an `Any` rule.
+  - A personal API token, unless the operation needs a connection scope.
+  - Nothing for a public operation.
+  - OAuth with no scopes for `Requirement::authenticated()`.
+
+  A credentialed operation that no offered scheme can carry is refused, so it never reads as public.
+- **Parameters and bodies:** path parameters come from `RestBinding::$pathParameters`. A GET, HEAD or DELETE input becomes query parameters; any other input becomes the request body. An `Idempotency-Key` header parameter is added for header idempotency keys.
+- **Extensions:** effect, idempotency, write safety, MCP tool name and dependencies are emitted under `x-agent-…`, with the prefix configurable. Declared `extensions` are added too.
+- **Spec-first migration:** `OpenApiDocumentBuilder::differences($builder->full(), $shippedPath)` lists JSON-pointer mismatches against a shipped document. Switch to generation when the list is empty; `write()` saves the result.
+
+### REST routes and the gate
+
+```php
+OperationRoutes::macro();                       // once, e.g. in a service provider
+Route::prefix('api/v1')->name('api.')->group(function () {
+    Route::operation('things.list', [ThingController::class, 'index']);
+});
+```
+
+`Route::operation()` registers the route from the operation's REST binding and adds `GateOperation:<id>`. A declared `routeName` is the route's full name, including any enclosing group's prefix. Without one, the route is named after the operation id. Path parameters come from the path's placeholders and take their schemas from the input.
+
+The middleware evaluates the container's `Availability` for the principal your bound `PrincipalResolver` returns. A withheld operation answers with `{message, operation, reason, detail}`:
+- **401** when no credential authenticated the caller;
+- **403** otherwise, with an RFC 6750 `insufficient_scope` challenge naming the missing scopes.
+
+### Test helpers
+
+`use Bherila\McpLaravelBridge\Testing\OperationRegistryAssertions;` in a feature test:
+
+- `assertOperationRegistryContract($registry, $builder, ['mcp:use'])`: no contract violations, declared route names exist, and every non-connection operation accepts both OAuth and API tokens.
+- `assertWebRoutesClassified($registry, $classification)`: every state-changing web route is classified as one of:
+  - `operation:<id>`;
+  - `mcp-only:<id>`;
+  - `missing`;
+  - `web-only:<reason>`;
+  - `deliberate:<reason>`.
+
+  It fails on an unclassified route, a stale entry, or an `mcp-only` entry whose REST binding has landed.
+- `assertScopeInventory($registry, $path)` and `assertVisibilitySnapshot($visibleByPrincipal, $path)`: reviewed JSON snapshots. Run with `UPDATE_OPERATION_SNAPSHOTS=1` to rewrite one for an intended change.

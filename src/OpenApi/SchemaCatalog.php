@@ -90,6 +90,32 @@ final class SchemaCatalog
         return $this->operationScopes[$operationId];
     }
 
+    /** The component an operation's JSON request body references. */
+    public function requestComponent(string $operationId): string
+    {
+        return $this->requestComponents()[$operationId]
+            ?? throw new InvalidArgumentException("No agent API request schema is declared for operation [{$operationId}].");
+    }
+
+    /**
+     * A component and every component it reaches, exactly as the document
+     * declares them (references still pointing at #/components/schemas), for
+     * copying into another document.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function componentClosure(string $component): array
+    {
+        $components = $this->components();
+        if (! isset($components[$component])) {
+            throw new InvalidArgumentException("Unknown agent API response schema [{$component}].");
+        }
+        $reachable = [];
+        $this->collect($component, $components, $reachable);
+
+        return array_intersect_key($components, $reachable);
+    }
+
     /**
      * Every operation in the document by operationId, as written: its HTTP
      * binding, its `security` (null when absent, `[]` when explicitly public)
