@@ -25,7 +25,7 @@ final class OperationRoutesTest extends TestCase
     {
         parent::setUp();
         $registry = (new OperationRegistry)->register(
-            Fixtures::read('things.show', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing}', routeName: 'things.show-route', pathParameters: ['thing'])]),
+            Fixtures::read('things.show', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing}', routeName: 'api.things.show-route', pathParameters: ['thing'])]),
             Fixtures::read('things.search', new Requirement(['things:read', 'search:use'], ScopeRule::Any), ['rest' => new RestBinding('GET', '/things/search')]),
             Fixtures::write('token.revoke', Requirement::authenticated(), ['rest' => new RestBinding('DELETE', '/token')]),
             Fixtures::write('things.create', new Requirement(['things:write'], flags: ['writes']), ['rest' => new RestBinding('POST', '/things')]),
@@ -117,10 +117,26 @@ final class OperationRoutesTest extends TestCase
             ->assertJsonPath('detail', 'writes');
     }
 
+    public function test_a_declared_route_name_is_the_full_name_and_satisfies_the_contract(): void
+    {
+        self::assertNotNull(Route::getRoutes()->getByName('api.things.show-route'));
+        self::assertNull(Route::getRoutes()->getByName('api.api.things.show-route'));
+        OperationRegistryAssertionsHost::assertOperationRegistryContract(app(OperationRegistry::class));
+
+        $this->expectException(InvalidOperation::class);
+        $this->expectExceptionMessage('cannot have');
+        Route::name('web.')->group(static fn () => Route::operation('things.show', static fn () => []));
+    }
+
     public function test_an_operation_without_a_rest_binding_cannot_be_routed(): void
     {
         $this->expectException(InvalidOperation::class);
         $this->expectExceptionMessage('no REST binding');
         Route::operation('things.mcp_only', static fn () => []);
     }
+}
+
+final class OperationRegistryAssertionsHost
+{
+    use \Bherila\McpLaravelBridge\Testing\OperationRegistryAssertions;
 }

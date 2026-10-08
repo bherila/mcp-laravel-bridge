@@ -22,8 +22,21 @@ final class OperationRoutes
         $operation = $registry->find($operationId) ?? throw new InvalidOperation("Operation [{$operationId}] is not registered.");
         $rest = $operation->rest ?? throw new InvalidOperation("Operation [{$operationId}] has no REST binding.");
 
+        // A declared route name is the route's full name, as the contract
+        // assertion looks it up; inside a named group, only the part after
+        // the group's prefix is passed on, so the prefix is not doubled.
+        $name = $operationId;
+        if ($rest->routeName !== null) {
+            $stack = Route::getGroupStack();
+            $prefix = (string) (end($stack)['as'] ?? '');
+            if (! str_starts_with($rest->routeName, $prefix)) {
+                throw new InvalidOperation("Operation [{$operationId}] declares route name [{$rest->routeName}], which a route in a group named [{$prefix}…] cannot have.");
+            }
+            $name = substr($rest->routeName, strlen($prefix));
+        }
+
         return Route::match([strtoupper($rest->method)], $rest->path, $action)
-            ->name($rest->routeName ?? $operationId)
+            ->name($name)
             ->middleware(GateOperation::class.':'.$operationId);
     }
 
