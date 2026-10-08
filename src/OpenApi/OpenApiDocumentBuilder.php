@@ -237,7 +237,13 @@ final class OpenApiDocumentBuilder
         if (! $this->settings->oauth()) {
             $alternatives = [];
         }
-        $needsConnection = array_intersect($scopes, $this->settings->connectionScopes) !== [];
+        // A personal token can carry anything but a connection scope: it is
+        // useless only when every way to satisfy the rule needs one (All: any
+        // of the scopes is one; Any: all of them are).
+        $connection = array_intersect($scopes, $this->settings->connectionScopes);
+        $needsConnection = $requirement->scopeRule === ScopeRule::Any && count($scopes) > 1
+            ? count($connection) === count($scopes)
+            : $connection !== [];
         if ($this->settings->apiTokens && ! $needsConnection) {
             $alternatives[] = ['apiToken' => []];
         }

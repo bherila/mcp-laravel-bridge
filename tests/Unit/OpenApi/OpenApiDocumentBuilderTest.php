@@ -207,6 +207,18 @@ final class OpenApiDocumentBuilderTest extends TestCase
         self::assertSame(['type' => 'integer', 'minimum' => 1], $parameters[0]['schema']);
     }
 
+    public function test_an_any_rule_with_an_ordinary_alternative_keeps_api_tokens(): void
+    {
+        $registry = (new OperationRegistry)->register(
+            Fixtures::read('things.peek', new Requirement(['mcp:use', 'things:read'], ScopeRule::Any), ['rest' => new RestBinding('GET', '/things/peek')]),
+            Fixtures::read('mcp.only', new Requirement(['mcp:use', 'mcp:admin'], ScopeRule::Any), ['rest' => new RestBinding('GET', '/mcp/only')]),
+        );
+        $paths = (new OpenApiDocumentBuilder($registry, $this->settings(['connectionScopes' => ['mcp:use', 'mcp:admin']])))->full()['paths'];
+
+        self::assertContains(['apiToken' => []], $paths['/things/peek']['get']['security']);
+        self::assertNotContains(['apiToken' => []], $paths['/mcp/only']['get']['security']);
+    }
+
     public function test_an_optional_placeholder_is_refused(): void
     {
         $registry = (new OperationRegistry)->register(Fixtures::read('things.list', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing?}')]));
