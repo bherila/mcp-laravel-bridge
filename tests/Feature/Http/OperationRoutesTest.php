@@ -106,6 +106,10 @@ final class OperationRoutesTest extends TestCase
             ->assertForbidden()
             ->assertHeader('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="things:read search:use"');
         $this->deleteJson('/api/v1/token')->assertUnauthorized()->assertJsonPath('reason', 'unauthenticated');
+        $this->getJson('/api/v1/things/7')
+            ->assertUnauthorized()
+            ->assertHeader('WWW-Authenticate', 'Bearer')
+            ->assertJsonPath('reason', 'missing_scope');
         $this->postJson('/api/v1/things', [], ['X-Test-Scopes' => 'things:write'])
             ->assertForbidden()
             ->assertJsonPath('reason', 'deployment_flag')

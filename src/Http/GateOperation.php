@@ -2,6 +2,7 @@
 
 namespace Bherila\McpLaravelBridge\Http;
 
+use Bherila\McpLaravelBridge\Capabilities\AuthenticatedPrincipal;
 use Bherila\McpLaravelBridge\Capabilities\Availability;
 use Bherila\McpLaravelBridge\Capabilities\PrincipalResolver;
 use Bherila\McpLaravelBridge\Capabilities\WithheldReason;
@@ -25,10 +26,8 @@ final class GateOperation
 
     public function handle(Request $request, Closure $next, string $operationId): Response
     {
-        $withheld = $this->container->make(Availability::class)->withheld(
-            $this->container->make(PrincipalResolver::class)->principal($request),
-            $operationId,
-        );
+        $principal = $this->container->make(PrincipalResolver::class)->principal($request);
+        $withheld = $this->container->make(Availability::class)->withheld($principal, $operationId);
         if ($withheld === null) {
             return $next($request);
         }
@@ -36,7 +35,11 @@ final class GateOperation
         $headers = ['Cache-Control' => 'no-store'];
         $status = 403;
         $message = 'This operation is not available to this caller.';
-        if ($withheld->reason === WithheldReason::Unauthenticated) {
+        // A caller with no credential needs to authenticate first, whatever
+        // else the operation would also have required.
+        $anonymous = $withheld->reason === WithheldReason::Unauthenticated
+            || ($principal instanceof AuthenticatedPrincipal && ! $principal->isAuthenticated());
+        if ($anonymous) {
             $status = 401;
             $message = 'Authentication is required.';
             $headers['WWW-Authenticate'] = 'Bearer';
