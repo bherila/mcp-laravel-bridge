@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (0.4.0)
+## 0.4.0 - 2026-10-09
 
 - **`OpenApiDocumentBuilder` and `OpenApiSettings`** generate the REST contract from the registry. The document includes:
   - installation URLs from configuration;
