@@ -231,6 +231,13 @@ final class OpenApiDocumentBuilderTest extends TestCase
             $changed['paths']['/things']['post']['summary'] = 'Renamed';
             unset($changed['paths']['/health']);
             $changed['paths']['/new'] = ['get' => []];
+            $shape = $builder->full();
+            $shape['paths']['/things']['post']['requestBody']['content']['application/json']['schema']['properties'] = [];
+            self::assertSame(
+                ['/paths/~1things/post/requestBody/content/application~1json/schema/properties: differs (object versus array)'],
+                OpenApiDocumentBuilder::differences($shape, $path),
+            );
+
             self::assertSame([
                 '/paths/~1health: missing from the generated document',
                 '/paths/~1things/post/summary: differs',

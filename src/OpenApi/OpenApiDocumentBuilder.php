@@ -187,12 +187,13 @@ final class OpenApiDocumentBuilder
      */
     public static function differences(array $generated, string $shippedPath): array
     {
+        // Decoded to objects, not arrays, so {} and [] stay distinguishable.
         try {
-            $shipped = json_decode((string) file_get_contents($shippedPath), true, 512, JSON_THROW_ON_ERROR);
+            $shipped = json_decode((string) file_get_contents($shippedPath), false, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
             return ['/: the shipped document is not valid JSON'];
         }
-        $generated = json_decode((string) json_encode($generated, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        $generated = json_decode((string) json_encode($generated, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
 
         return self::diff($shipped, $generated, '');
     }
@@ -385,7 +386,10 @@ final class OpenApiDocumentBuilder
     /** @return list<string> */
     private static function diff(mixed $expected, mixed $actual, string $pointer): array
     {
-        if (is_array($expected) && is_array($actual) && array_is_list($expected) === array_is_list($actual)) {
+        $bothObjects = $expected instanceof stdClass && $actual instanceof stdClass;
+        if ($bothObjects || (is_array($expected) && is_array($actual))) {
+            $expected = (array) $expected;
+            $actual = (array) $actual;
             $differences = [];
             foreach (array_unique([...array_keys($expected), ...array_keys($actual)]) as $key) {
                 $child = $pointer.'/'.str_replace(['~', '/'], ['~0', '~1'], (string) $key);
@@ -399,6 +403,10 @@ final class OpenApiDocumentBuilder
             }
 
             return $differences;
+        }
+
+        if ($expected instanceof stdClass || $actual instanceof stdClass || is_array($expected) || is_array($actual)) {
+            return [($pointer === '' ? '/' : $pointer).': differs (object versus array)'];
         }
 
         return $expected === $actual ? [] : [($pointer === '' ? '/' : $pointer).': differs'];
