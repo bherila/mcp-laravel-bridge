@@ -243,13 +243,24 @@ final class OpenApiDocumentBuilder
             $schemes['apiToken'] = ['type' => 'http', 'scheme' => 'bearer', 'description' => $this->settings->apiTokenDescription];
         }
         if ($this->settings->oauth()) {
+            // Every scope an operation can require is one a client must be able
+            // to request: settings describe them, and any they omit is added.
+            $scopes = $this->settings->scopes;
+            foreach ($this->registry->all() as $operation) {
+                foreach ($operation->requirement->scopes as $scope) {
+                    $scopes[$scope] ??= $scope;
+                }
+            }
+            foreach ($this->settings->connectionScopes as $scope) {
+                $scopes[$scope] ??= $scope;
+            }
             $schemes['oauth2'] = [
                 'type' => 'oauth2',
                 'flows' => ['authorizationCode' => [
                     'authorizationUrl' => (string) $this->settings->authorizationUrl,
                     'tokenUrl' => (string) $this->settings->tokenUrl,
                     'refreshUrl' => (string) $this->settings->tokenUrl,
-                    'scopes' => $this->settings->scopes === [] ? new stdClass : $this->settings->scopes,
+                    'scopes' => $scopes === [] ? new stdClass : $scopes,
                 ]],
             ];
         }

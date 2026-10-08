@@ -71,6 +71,8 @@ final class OpenApiDocumentBuilderTest extends TestCase
         $flow = $document['components']['securitySchemes']['oauth2']['flows']['authorizationCode'];
         self::assertSame('https://things.example.test/oauth/authorize', $flow['authorizationUrl']);
         self::assertSame('https://things.example.test/oauth/token', $flow['tokenUrl']);
+        self::assertSame('Read things', $flow['scopes']['things:read']);
+        self::assertSame('search:use', $flow['scopes']['search:use'] ?? null, 'A required scope the settings omit is still requestable');
         self::assertSame(['type' => 'http', 'scheme' => 'bearer'], array_intersect_key($document['components']['securitySchemes']['apiToken'], ['type' => 1, 'scheme' => 1]));
         self::assertSame(['/health', '/mcp', '/oauth/token', '/projects/{project}/things', '/things', '/things/search'], self::sorted(array_keys($document['paths'])), 'Every REST operation, and the MCP-only one is absent');
     }
