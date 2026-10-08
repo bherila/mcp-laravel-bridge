@@ -254,4 +254,7 @@ $registry = (new OperationRegistry)->register(new Operation(
   - `evaluate($principal)` returns the available operations, plus the withheld ones with a reason an agent can relay.
   - `implemented()` is the flags-only view that server capabilities should advertise.
 - **`OperationToolFactory`** turns available operations into `ToolWithSecuritySchemes`, or into `ToolDefinition`s for an existing server factory. Pass `connectionScopes: ['mcp:use']` (or whatever your MCP endpoint checks) so every advertised scheme includes it.
+- **Requirements:** `new Requirement([...scopes])` (All or Any rule), permissions, a group and deployment flags. `Requirement::publicAccess()` needs nothing. `Requirement::authenticated()` needs any credential and no particular scope, e.g. self-revocation. Implement `AuthenticatedPrincipal::isAuthenticated()` for it; a plain `Principal` is withheld with reason `unauthenticated`.
+- **Deriving an operation:** `$operation->with(rest: new RestBinding('GET', '/things'))` returns a copy with those fields replaced and every other field kept.
+- **Spec-first:** `SchemaCatalog::operations()` lists every documented operation with its method, path and `security` as written. `security` is `[]` when explicitly public and `null` when absent. Use it to register the REST operations no tool fronts.
 - **Contract test:** pin `$registry->contractViolations() === []` in a test.

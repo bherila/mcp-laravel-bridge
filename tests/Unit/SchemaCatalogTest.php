@@ -46,4 +46,53 @@ final class SchemaCatalogTest extends TestCase
 
         (new SchemaCatalog(__DIR__.'/../Fixtures/openapi-external.json'))->forOperation('things.list');
     }
+
+    public function test_operations_report_bindings_and_security_as_written(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'openapi');
+        file_put_contents($path, json_encode(['openapi' => '3.1.0', 'paths' => [
+            '/things' => [
+                'get' => ['operationId' => 'things.list', 'summary' => 'List things', 'security' => [['oauth2' => ['things:read']], ['apiToken' => []]]],
+                'parameters' => [],
+                'x-codegen' => ['operationId' => 'metadata'],
+            ],
+            '/health' => ['get' => ['operationId' => 'health.get', 'security' => []]],
+            '/token' => ['delete' => ['operationId' => 'token.revoke', 'security' => [['oauth2' => []]]]],
+            '/legacy' => ['get' => ['operationId' => 'legacy.get']],
+        ]]));
+
+        try {
+            $operations = (new SchemaCatalog($path))->operations();
+        } finally {
+            unlink($path);
+        }
+
+        $this->assertSame(['things.list', 'health.get', 'token.revoke', 'legacy.get'], array_keys($operations));
+        $this->assertSame(['method' => 'GET', 'path' => '/things', 'security' => [['oauth2' => ['things:read']], ['apiToken' => []]], 'summary' => 'List things', 'description' => ''], $operations['things.list']);
+        $this->assertSame([], $operations['health.get']['security'], 'Explicitly public');
+        $this->assertSame([['oauth2' => []]], $operations['token.revoke']['security'], 'Any credential');
+        $this->assertNull($operations['legacy.get']['security'], 'Not declared');
+        $this->assertSame('DELETE', $operations['token.revoke']['method']);
+    }
+
+    public function test_operations_follow_local_path_item_references_and_refuse_others(): void
+    {
+        $catalog = static function (array $document): SchemaCatalog {
+            $path = tempnam(sys_get_temp_dir(), 'openapi');
+            file_put_contents($path, json_encode($document));
+            register_shutdown_function(static fn () => @unlink($path));
+
+            return new SchemaCatalog($path);
+        };
+
+        $operations = $catalog(['openapi' => '3.1.0',
+            'paths' => ['/things' => ['$ref' => '#/components/pathItems/Things']],
+            'components' => ['pathItems' => ['Things' => ['get' => ['operationId' => 'things.list', 'security' => [['oauth2' => ['things:read']]]]]]],
+        ])->operations();
+        $this->assertSame(['GET', '/things'], [$operations['things.list']['method'], $operations['things.list']['path']]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('not a resolvable local path item');
+        $catalog(['openapi' => '3.1.0', 'paths' => ['/things' => ['$ref' => 'https://elsewhere.example.test/things.json']]])->operations();
+    }
 }

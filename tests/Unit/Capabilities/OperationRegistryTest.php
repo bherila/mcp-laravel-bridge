@@ -9,6 +9,7 @@ use Bherila\McpLaravelBridge\Capabilities\Operation;
 use Bherila\McpLaravelBridge\Capabilities\OperationProvider;
 use Bherila\McpLaravelBridge\Capabilities\OperationRegistry;
 use Bherila\McpLaravelBridge\Capabilities\Requirement;
+use Bherila\McpLaravelBridge\Capabilities\RestBinding;
 use Bherila\McpLaravelBridge\Capabilities\WriteSafety;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -52,6 +53,30 @@ final class OperationRegistryTest extends TestCase
         $this->expectException(InvalidOperation::class);
         $this->expectExceptionMessage($message);
         (new OperationRegistry)->register(...$operations);
+    }
+
+    public function test_an_authenticated_requirement_is_a_declaration_and_excludes_public(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::write('token.revoke', Requirement::authenticated()));
+        self::assertCount(1, $registry->all(), 'Any credential is a requirement, not nothing');
+
+        $this->expectException(\InvalidArgumentException::class);
+        new Requirement(public: true, authenticated: true);
+    }
+
+    public function test_with_replaces_named_fields_and_keeps_the_rest(): void
+    {
+        $operation = Fixtures::read('things.list', new Requirement(['things:read']), ['tags' => ['things'], 'rest' => null]);
+        $bound = $operation->with(rest: new RestBinding('GET', '/things'));
+
+        self::assertSame('/things', $bound->rest?->path);
+        self::assertNull($operation->rest, 'The original is unchanged');
+        self::assertSame(['things'], $bound->tags);
+        self::assertSame($operation->mcp, $bound->mcp);
+        self::assertEquals(
+            array_diff_key(get_object_vars($operation), ['rest' => 1]),
+            array_diff_key(get_object_vars($bound), ['rest' => 1]),
+        );
     }
 
     public function test_a_public_requirement_cannot_name_a_credential_group(): void

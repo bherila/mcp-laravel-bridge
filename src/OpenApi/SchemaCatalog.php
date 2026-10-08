@@ -10,6 +10,8 @@ final class SchemaCatalog
 {
     private const string REF_PREFIX = '#/components/schemas/';
 
+    private const array HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
+
     /** @var array<string, mixed>|null */
     private ?array $document = null;
 
@@ -86,6 +88,67 @@ final class SchemaCatalog
         }
 
         return $this->operationScopes[$operationId];
+    }
+
+    /**
+     * Every operation in the document by operationId, as written: its HTTP
+     * binding, its `security` (null when absent, `[]` when explicitly public)
+     * and its prose. Lets a spec-first application tell a public operation from
+     * an unknown one and register operations no tool fronts.
+     *
+     * @return array<string, array{method: string, path: string, security: list<array<string, list<string>>>|null, summary: string, description: string}>
+     */
+    public function operations(): array
+    {
+        $operations = [];
+        foreach ($this->document()['paths'] ?? [] as $path => $item) {
+            $item = $this->pathItem($item, (string) $path);
+            foreach ($item as $method => $operation) {
+                // Only HTTP methods: a path item's parameters, servers or an
+                // object-valued x- extension is never an operation.
+                if (! in_array($method, self::HTTP_METHODS, true) || ! is_array($operation) || ! is_string($operation['operationId'] ?? null)) {
+                    continue;
+                }
+                $security = $operation['security'] ?? null;
+                $operations[$operation['operationId']] = [
+                    'method' => strtoupper((string) $method),
+                    'path' => (string) $path,
+                    'security' => is_array($security) ? array_values(array_filter($security, 'is_array')) : null,
+                    'summary' => is_string($operation['summary'] ?? null) ? $operation['summary'] : '',
+                    'description' => is_string($operation['description'] ?? null) ? $operation['description'] : '',
+                ];
+            }
+        }
+
+        return $operations;
+    }
+
+    /**
+     * A path item, following a local `$ref` into components.pathItems (OpenAPI
+     * 3.1). Any other reference is refused rather than read as no operations.
+     *
+     * @return array<string, mixed>
+     */
+    private function pathItem(mixed $item, string $path): array
+    {
+        $seen = [];
+        while (is_array($item) && is_string($item['$ref'] ?? null)) {
+            $ref = $item['$ref'];
+            $prefix = '#/components/pathItems/';
+            if (! str_starts_with($ref, $prefix) || isset($seen[$ref])) {
+                throw new InvalidArgumentException("Path [{$path}] references [{$ref}], which is not a resolvable local path item.");
+            }
+            $seen[$ref] = true;
+            $name = str_replace(['~1', '~0'], ['/', '~'], substr($ref, strlen($prefix)));
+            $target = $this->document()['components']['pathItems'][$name] ?? null;
+            if (! is_array($target)) {
+                throw new InvalidArgumentException("Path [{$path}] references missing path item [{$ref}].");
+            }
+            // Sibling fields beside a Path Item $ref override the referenced ones.
+            $item = [...$target, ...array_diff_key($item, ['$ref' => true])];
+        }
+
+        return is_array($item) ? $item : [];
     }
 
     public function flush(): void

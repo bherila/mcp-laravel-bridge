@@ -8,8 +8,9 @@ namespace Bherila\McpLaravelBridge\Capabilities;
  * document, the context view an agent reads before planning, and the runtime
  * gate - so they cannot disagree.
  *
- * Order of checks, first failure wins: deployment flags, group, scopes,
- * permissions, application policy, then dependencies on other operations.
+ * Order of checks, first failure wins: deployment flags, authentication,
+ * group, scopes, permissions, application policy, then dependencies on other
+ * operations.
  */
 final class Availability
 {
@@ -123,6 +124,9 @@ final class Availability
             return $flag;
         }
         $requirement = $operation->requirement;
+        if ($requirement->authenticated && ! ($principal instanceof AuthenticatedPrincipal && $principal->isAuthenticated())) {
+            return new Withheld($operation->id, WithheldReason::Unauthenticated, '');
+        }
         if (! $principal->allowsGroup($requirement->group)) {
             return new Withheld($operation->id, WithheldReason::GroupNotGranted, (string) $requirement->group);
         }

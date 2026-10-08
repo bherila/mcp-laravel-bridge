@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 - 2026-10-08
+
+From the first spec-first adopter:
+
+- **`Requirement::authenticated()`** needs any authenticated credential and no particular scope, e.g. self-revocation. A `Principal` that also implements `AuthenticatedPrincipal::isAuthenticated()` satisfies it. Any other principal is withheld with the new reason `unauthenticated`, so it fails closed. The registry accepts such an operation, a requirement cannot be both public and authenticated, and the MCP scheme is OAuth with only the connection scopes.
+- **`Operation::with(...)`** returns a copy with the named fields replaced, e.g. a REST binding taken from the document. Every other field, including any added later, carries over.
+- **`SchemaCatalog::operations()`** lists every documented operation with its method, path, prose and `security` as written. `security` is `[]` when explicitly public and `null` when absent, which `scopesForOperation()` cannot distinguish.
+
 ## 0.3.0 - 2026-10-08
 
 - **Capability registry** (`Bherila\McpLaravelBridge\Capabilities`). It lets an application declare

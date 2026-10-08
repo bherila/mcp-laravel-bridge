@@ -34,6 +34,15 @@ final readonly class Operation
         public ?string $deprecation = null,
     ) {}
 
+    /**
+     * A copy with some fields replaced, e.g. `->with(rest: new RestBinding(...))`.
+     * Every other field carries over, including any added later.
+     */
+    public function with(mixed ...$changes): self
+    {
+        return new self(...[...get_object_vars($this), ...$changes]);
+    }
+
     public function mcpName(): ?string
     {
         if ($this->mcp === null) {
