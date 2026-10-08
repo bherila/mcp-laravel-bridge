@@ -56,12 +56,17 @@ final class OpenApiDocumentBuilder
         usort($operations, static fn (Operation $a, Operation $b): int => strcmp($a->id, $b->id));
 
         $paths = [];
+        $routes = [];
         foreach ($operations as $operation) {
             $method = strtolower((string) $operation->rest?->method);
             $path = (string) $operation->rest?->path;
-            if (isset($paths[$path][$method])) {
-                throw new LogicException("Operations [{$paths[$path][$method]['operationId']}] and [{$operation->id}] are both bound to {$method} {$path}.");
+            // Templates differing only in placeholder names match the same
+            // requests, so they collide too.
+            $template = $method.' '.preg_replace('/\{[^}]+\}/', '{}', $path);
+            if (isset($routes[$template])) {
+                throw new LogicException("Operations [{$routes[$template]}] and [{$operation->id}] are both bound to {$method} {$path}.");
             }
+            $routes[$template] = $operation->id;
             $paths[$path][$method] = $this->operation($operation);
         }
 

@@ -207,6 +207,18 @@ final class OpenApiDocumentBuilderTest extends TestCase
         self::assertSame(['type' => 'integer', 'minimum' => 1], $parameters[0]['schema']);
     }
 
+    public function test_templates_differing_only_in_placeholder_names_collide(): void
+    {
+        $registry = (new OperationRegistry)->register(
+            Fixtures::read('a', new Requirement(['s']), ['rest' => new RestBinding('GET', '/things/{id}')]),
+            Fixtures::read('b', new Requirement(['s']), ['rest' => new RestBinding('GET', '/things/{thing}')]),
+        );
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('both bound to get /things/{thing}');
+        (new OpenApiDocumentBuilder($registry, $this->settings()))->full();
+    }
+
     public function test_two_operations_on_one_route_are_refused(): void
     {
         $registry = (new OperationRegistry)->register(
