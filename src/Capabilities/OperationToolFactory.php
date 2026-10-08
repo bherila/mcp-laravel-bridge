@@ -84,9 +84,12 @@ final class OperationToolFactory
         if (isset($declared['$defs'])) {
             $schema['$defs'] = [...($schema['$defs'] ?? []), ...$declared['$defs']];
         }
-        foreach (['allOf', 'anyOf', 'oneOf', 'dependentRequired'] as $keyword) {
-            if (isset($declared[$keyword])) {
-                $schema[$keyword] = $declared[$keyword];
+        // Every other declared keyword (combinators, not, if/then, propertyNames,
+        // minProperties, ...) carries over unchanged: dropping one would let
+        // MCP accept input the declared contract rejects.
+        foreach ($declared as $keyword => $value) {
+            if (! in_array($keyword, ['properties', 'required', '$defs', 'type', 'additionalProperties'], true)) {
+                $schema[$keyword] = $value;
             }
         }
         $schema['type'] = 'object';

@@ -62,4 +62,24 @@ final class OperationToolFactoryTest extends TestCase
     {
         self::assertSame([['type' => 'noauth']], OperationToolFactory::securitySchemes(Fixtures::read('health', Requirement::publicAccess())));
     }
+
+    public function test_every_declared_input_constraint_survives_the_merge(): void
+    {
+        $declared = [
+            'type' => 'object',
+            'additionalProperties' => false,
+            'properties' => ['a' => ['type' => 'string'], 'b' => ['type' => 'string']],
+            'minProperties' => 1,
+            'not' => ['required' => ['a', 'b']],
+            'if' => ['required' => ['a']],
+            'then' => ['properties' => ['a' => ['minLength' => 2]]],
+            'propertyNames' => ['pattern' => '^[a-z]+$'],
+        ];
+        $input = (new OperationToolFactory)->inputSchema(Fixtures::read('things.pick', new Requirement(['s']), ['input' => $declared]));
+
+        foreach (['minProperties', 'not', 'if', 'then', 'propertyNames'] as $keyword) {
+            self::assertSame($declared[$keyword], $input[$keyword] ?? null, $keyword);
+        }
+        self::assertFalse($input['additionalProperties']);
+    }
 }
