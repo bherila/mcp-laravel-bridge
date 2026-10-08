@@ -82,4 +82,18 @@ final class OperationToolFactoryTest extends TestCase
         }
         self::assertFalse($input['additionalProperties']);
     }
+
+    public function test_a_write_without_an_idempotency_key_is_not_advertised_as_idempotent(): void
+    {
+        $confirmOnly = Fixtures::write('things.notify', new Requirement(['s']), [
+            'effect' => \Bherila\McpLaravelBridge\Capabilities\Effect::ExternalWrite,
+            'safety' => new \Bherila\McpLaravelBridge\Capabilities\WriteSafety(confirm: true),
+        ]);
+        $tool = json_decode((string) json_encode((new OperationToolFactory)->tool($confirmOnly)), true);
+
+        self::assertFalse($tool['annotations']['idempotentHint']);
+        self::assertFalse($confirmOnly->isIdempotent());
+        self::assertTrue(Fixtures::write('things.keyed', new Requirement(['s']))->isIdempotent(), 'A declared idempotency key makes it idempotent');
+        self::assertTrue(Fixtures::write('things.natural', new Requirement(['s']), ['safety' => new \Bherila\McpLaravelBridge\Capabilities\WriteSafety(confirm: true), 'idempotent' => true])->isIdempotent(), 'Explicit wins');
+    }
 }

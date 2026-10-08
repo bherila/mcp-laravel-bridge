@@ -34,7 +34,7 @@ final class OperationToolFactory
             operationId: $operation->id,
             readOnly: $operation->effect->readOnly(),
             destructive: $operation->effect->destructive(),
-            idempotent: $operation->idempotent,
+            idempotent: $operation->isIdempotent(),
         );
     }
 
@@ -52,7 +52,7 @@ final class OperationToolFactory
                 title: $operation->title,
                 readOnlyHint: $operation->effect->readOnly(),
                 destructiveHint: $operation->effect->readOnly() ? null : $operation->effect->destructive(),
-                idempotentHint: $operation->effect->readOnly() ? null : $operation->idempotent,
+                idempotentHint: $operation->effect->readOnly() ? null : $operation->isIdempotent(),
                 openWorldHint: $operation->effect->openWorld(),
             ),
             outputSchema: $this->outputSchema($operation),

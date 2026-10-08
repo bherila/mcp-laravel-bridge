@@ -21,7 +21,8 @@ final readonly class Operation
         public string $description,
         public Effect $effect,
         public Requirement $requirement,
-        public bool $idempotent = true,
+        /** Null derives it: reads are idempotent; a write is only if it declares an idempotency key. */
+        public ?bool $idempotent = null,
         public WriteSafety $safety = new WriteSafety,
         public ?RestBinding $rest = null,
         public ?McpBinding $mcp = null,
@@ -40,6 +41,17 @@ final readonly class Operation
         }
 
         return $this->mcp->name ?? $this->id;
+    }
+
+    /**
+     * Whether repeating the call is safe. Set explicitly for natural-key
+     * idempotency; otherwise a write without an idempotency key is not, so
+     * clients are never told to retry an email, charge or creation.
+     */
+    public function isIdempotent(): bool
+    {
+        return $this->idempotent
+            ?? ($this->effect->readOnly() || $this->safety->idempotencyKey !== IdempotencyKey::None);
     }
 
     public function group(): ?string
