@@ -104,7 +104,8 @@ final class OperationRoutesTest extends TestCase
             ->assertExactJson(['message' => 'This credential lacks the scope this operation needs.', 'operation' => 'things.show', 'reason' => 'missing_scope', 'detail' => 'things:read']);
         $this->getJson('/api/v1/things/search', ['X-Test-Scopes' => 'other'])
             ->assertForbidden()
-            ->assertHeader('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="things:read search:use"');
+            ->assertHeader('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="things:read"')
+            ->assertJsonPath('detail', 'things:read|search:use');
         $this->deleteJson('/api/v1/token')->assertUnauthorized()->assertJsonPath('reason', 'unauthenticated');
         $this->getJson('/api/v1/things/7')
             ->assertUnauthorized()

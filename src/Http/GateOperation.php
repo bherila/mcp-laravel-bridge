@@ -45,7 +45,9 @@ final class GateOperation
             $headers['WWW-Authenticate'] = 'Bearer';
         } elseif ($withheld->reason === WithheldReason::MissingScope) {
             $message = 'This credential lacks the scope this operation needs.';
-            $scopes = str_replace('|', ' ', $withheld->detail);
+            // A space-separated scope list means all of them. For alternatives
+            // ("a|b") name the first, which is enough on its own.
+            $scopes = str_contains($withheld->detail, '|') ? explode('|', $withheld->detail)[0] : $withheld->detail;
             $headers['WWW-Authenticate'] = 'Bearer error="insufficient_scope", scope="'.addcslashes($scopes, '"\\').'"';
         }
 
