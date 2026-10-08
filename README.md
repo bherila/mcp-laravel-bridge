@@ -253,5 +253,5 @@ $registry = (new OperationRegistry)->register(new Operation(
 - **`Availability`** takes your `Principal` adapter (scopes, permissions, groups), `DeploymentFlags` (`ConfigDeploymentFlags` supports nested cutovers and a first-party bypass) and an optional `OperationPolicy`.
   - `evaluate($principal)` returns the available operations, plus the withheld ones with a reason an agent can relay.
   - `implemented()` is the flags-only view that server capabilities should advertise.
-- **`OperationToolFactory`** turns available operations into `ToolWithSecuritySchemes`, or into `ToolDefinition`s for an existing server factory.
+- **`OperationToolFactory`** turns available operations into `ToolWithSecuritySchemes`, or into `ToolDefinition`s for an existing server factory. Pass `connectionScopes: ['mcp:use']` (or whatever your MCP endpoint checks) so every advertised scheme includes it.
 - **Contract test:** pin `$registry->contractViolations() === []` in a test.

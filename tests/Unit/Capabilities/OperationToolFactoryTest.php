@@ -115,4 +115,16 @@ final class OperationToolFactoryTest extends TestCase
         $this->expectExceptionMessage('not a tool');
         (new OperationToolFactory)->tool($resource);
     }
+
+    public function test_the_endpoint_connection_scope_is_part_of_every_scheme(): void
+    {
+        $any = Fixtures::read('things.search', new Requirement(['things:read', 'search:use'], ScopeRule::Any));
+        $tool = json_decode((string) json_encode((new OperationToolFactory(connectionScopes: ['mcp:use']))->tool($any)), true);
+
+        self::assertSame([
+            ['type' => 'oauth2', 'scopes' => ['mcp:use', 'things:read']],
+            ['type' => 'oauth2', 'scopes' => ['mcp:use', 'search:use']],
+        ], $tool['securitySchemes']);
+        self::assertSame([['type' => 'oauth2', 'scopes' => ['mcp:use']]], OperationToolFactory::securitySchemes(Fixtures::read('health', Requirement::publicAccess()), ['mcp:use']));
+    }
 }

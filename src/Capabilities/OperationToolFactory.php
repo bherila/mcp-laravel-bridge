@@ -16,9 +16,15 @@ use Mcp\Schema\ToolAnnotations;
  */
 final class OperationToolFactory
 {
+    /**
+     * @param  list<string>  $connectionScopes  scopes the MCP endpoint itself requires (e.g. `mcp:use`),
+     *                                          added to every generated scheme so a client that follows the
+     *                                          metadata holds everything the endpoint checks
+     */
     public function __construct(
         private readonly ?SchemaCatalog $catalog = null,
         private readonly ReflectedInputSchemaFactory $reflected = new ReflectedInputSchemaFactory,
+        private readonly array $connectionScopes = [],
     ) {}
 
     /** The existing ToolDefinition shape, for applications that build their server from it. */
@@ -43,7 +49,7 @@ final class OperationToolFactory
         $this->binding($operation);
 
         return new ToolWithSecuritySchemes(
-            securitySchemes: self::securitySchemes($operation),
+            securitySchemes: self::securitySchemes($operation, $this->connectionScopes),
             name: (string) $operation->mcpName(),
             title: $operation->title,
             inputSchema: $this->inputSchema($operation),
@@ -110,21 +116,24 @@ final class OperationToolFactory
 
     /**
      * OAuth security schemes for the MCP tool. An All rule is one scheme with
-     * every scope; an Any rule offers one scheme per scope.
+     * every scope; an Any rule offers one scheme per scope. The endpoint's own
+     * connection scopes are part of every alternative.
      *
+     * @param  list<string>  $connectionScopes
      * @return list<array{type: string, scopes?: list<string>}>
      */
-    public static function securitySchemes(Operation $operation): array
+    public static function securitySchemes(Operation $operation, array $connectionScopes = []): array
     {
         $requirement = $operation->requirement;
+        $with = static fn (array $scopes): array => ['type' => 'oauth2', 'scopes' => array_values(array_unique([...$connectionScopes, ...$scopes]))];
         if ($requirement->public) {
-            return [['type' => 'noauth']];
+            return $connectionScopes === [] ? [['type' => 'noauth']] : [$with([])];
         }
         if ($requirement->scopeRule === ScopeRule::Any && count($requirement->scopes) > 1) {
-            return array_map(static fn (string $scope): array => ['type' => 'oauth2', 'scopes' => [$scope]], $requirement->scopes);
+            return array_map(static fn (string $scope): array => $with([$scope]), $requirement->scopes);
         }
 
-        return [['type' => 'oauth2', 'scopes' => $requirement->scopes]];
+        return [$with($requirement->scopes)];
     }
 
     /**
