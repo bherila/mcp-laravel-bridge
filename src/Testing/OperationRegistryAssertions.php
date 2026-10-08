@@ -4,6 +4,7 @@ namespace Bherila\McpLaravelBridge\Testing;
 
 use Bherila\McpLaravelBridge\Capabilities\Operation;
 use Bherila\McpLaravelBridge\Capabilities\OperationRegistry;
+use Bherila\McpLaravelBridge\Capabilities\ScopeRule;
 use Bherila\McpLaravelBridge\OpenApi\OpenApiDocumentBuilder;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Route as RouteFacade;
@@ -48,7 +49,12 @@ trait OperationRegistryAssertions
             Assert::fail('The OpenAPI document cannot be generated: '.$exception->getMessage());
         }
         foreach ($registry->all() as $operation) {
-            if ($operation->rest === null || $operation->requirement->public || array_intersect($operation->requirement->scopes, $connectionScopes) !== []) {
+            $requirement = $operation->requirement;
+            $connection = array_intersect($requirement->scopes, $connectionScopes);
+            $connectionOnly = $requirement->scopeRule === ScopeRule::Any && count($requirement->scopes) > 1
+                ? count($connection) === count($requirement->scopes)
+                : $connection !== [];
+            if ($operation->rest === null || $requirement->public || $connectionOnly) {
                 continue;
             }
             $schemes = array_merge(...array_map(array_keys(...), $openApi->operation($operation)['security']));

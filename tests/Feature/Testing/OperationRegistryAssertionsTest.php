@@ -74,6 +74,20 @@ final class OperationRegistryAssertionsTest extends TestCase
         self::assertOperationRegistryContract($registry);
     }
 
+    public function test_an_any_rule_with_an_ordinary_alternative_must_offer_api_tokens(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::read('things.peek', new Requirement(['mcp:use', 'things:read'], \Bherila\McpLaravelBridge\Capabilities\ScopeRule::Any), ['rest' => new RestBinding('GET', '/things/peek')]));
+        $tokensOff = new OpenApiDocumentBuilder($registry, new OpenApiSettings(
+            title: 'Things', version: '1', serverUrl: 'https://things.example.test/api/v1',
+            authorizationUrl: 'https://things.example.test/oauth/authorize', tokenUrl: 'https://things.example.test/oauth/token',
+            apiTokens: false, connectionScopes: ['mcp:use'],
+        ));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('[things.peek] is not offered to personal API tokens');
+        self::assertOperationRegistryContract($registry, $tokensOff, ['mcp:use']);
+    }
+
     public function test_two_operations_on_one_route_fail_the_contract(): void
     {
         $registry = (new OperationRegistry)->register(
