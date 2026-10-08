@@ -182,6 +182,12 @@ final class OpenApiDocumentBuilderTest extends TestCase
         self::assertSame(2, substr_count($json, '"properties":{}') / 2, 'Request and response bodies each carry both media types');
     }
 
+    public function test_a_failed_write_is_reported(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        OpenApiDocumentBuilder::write(['openapi' => '3.1.0'], sys_get_temp_dir().'/missing-'.bin2hex(random_bytes(4)).'/openapi.json');
+    }
+
     public function test_two_operations_on_one_route_are_refused(): void
     {
         $registry = (new OperationRegistry)->register(

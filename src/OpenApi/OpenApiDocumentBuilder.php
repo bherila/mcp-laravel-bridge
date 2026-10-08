@@ -11,6 +11,7 @@ use Bherila\McpLaravelBridge\Capabilities\ScopeRule;
 use Bherila\McpLaravelBridge\Capabilities\SchemaRef;
 use JsonException;
 use LogicException;
+use RuntimeException;
 use stdClass;
 
 /**
@@ -201,7 +202,10 @@ final class OpenApiDocumentBuilder
     /** @param  array<string, mixed>  $document */
     public static function write(array $document, string $path): void
     {
-        file_put_contents($path, json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n");
+        $json = json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n";
+        if (@file_put_contents($path, $json) !== strlen($json)) {
+            throw new RuntimeException("The OpenAPI document could not be written to {$path}.");
+        }
     }
 
     /**
