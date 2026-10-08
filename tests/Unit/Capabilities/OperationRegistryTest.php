@@ -54,6 +54,13 @@ final class OperationRegistryTest extends TestCase
         (new OperationRegistry)->register(...$operations);
     }
 
+    public function test_a_public_requirement_cannot_name_a_credential_group(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('or a group');
+        new Requirement(group: 'reports', public: true);
+    }
+
     public function test_public_and_read_only_operations_need_no_scope_or_safety(): void
     {
         $registry = (new OperationRegistry)->register(Fixtures::read('health', Requirement::publicAccess()));

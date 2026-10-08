@@ -26,8 +26,11 @@ final readonly class Requirement
         public array $flags = [],
         public bool $public = false,
     ) {
-        if ($public && ($scopes !== [] || $permissions !== [] || $anyPermissions !== [])) {
-            throw new InvalidArgumentException('A public requirement cannot also require scopes or permissions.');
+        // A group is granted by a credential, so it would need one: a public
+        // operation advertised as `noauth` must not be withheld from every
+        // caller who follows that advertisement.
+        if ($public && ($scopes !== [] || $permissions !== [] || $anyPermissions !== [] || $group !== null)) {
+            throw new InvalidArgumentException('A public requirement cannot also require scopes, permissions or a group.');
         }
     }
 
