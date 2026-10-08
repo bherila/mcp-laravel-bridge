@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (0.3.0)
+## 0.3.0 - 2026-10-08
 
 - **Capability registry** (`Bherila\McpLaravelBridge\Capabilities`). It lets an application declare
   each agent operation once:
