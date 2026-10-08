@@ -74,6 +74,22 @@ final class OperationRegistryAssertionsTest extends TestCase
         self::assertOperationRegistryContract($registry);
     }
 
+    public function test_two_operations_on_one_route_fail_the_contract(): void
+    {
+        $registry = (new OperationRegistry)->register(
+            Fixtures::read('a', new Requirement(['s']), ['rest' => new RestBinding('GET', '/same')]),
+            Fixtures::read('b', new Requirement(['s']), ['rest' => new RestBinding('GET', '/same')]),
+        );
+        $builder = new OpenApiDocumentBuilder($registry, new OpenApiSettings(
+            title: 'Things', version: '1', serverUrl: 'https://things.example.test/api/v1',
+            authorizationUrl: 'https://things.example.test/oauth/authorize', tokenUrl: 'https://things.example.test/oauth/token',
+        ));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('both bound to get /same');
+        self::assertOperationRegistryContract($registry, $builder);
+    }
+
     public function test_an_operation_without_an_api_token_alternative_fails(): void
     {
         $builder = new OpenApiDocumentBuilder($this->registry, new OpenApiSettings(

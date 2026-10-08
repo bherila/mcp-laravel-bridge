@@ -40,6 +40,13 @@ trait OperationRegistryAssertions
         if ($openApi === null) {
             return;
         }
+        // Document-level invariants (one operation per method and path, every
+        // credentialed operation carried by a scheme) hold only for the whole.
+        try {
+            $openApi->full();
+        } catch (\LogicException $exception) {
+            Assert::fail('The OpenAPI document cannot be generated: '.$exception->getMessage());
+        }
         foreach ($registry->all() as $operation) {
             if ($operation->rest === null || $operation->requirement->public || array_intersect($operation->requirement->scopes, $connectionScopes) !== []) {
                 continue;
