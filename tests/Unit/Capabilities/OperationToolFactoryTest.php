@@ -103,7 +103,8 @@ final class OperationToolFactoryTest extends TestCase
         $json = (string) json_encode((new OperationToolFactory)->tool($handlerless));
 
         self::assertStringContainsString('"properties":{}', $json);
-        self::assertStringNotContainsString('"properties":[]', $json);
+        // The schema itself, which applications may hand to other validators, not just the serialized tool.
+        self::assertStringContainsString('"properties":{}', (string) json_encode((new OperationToolFactory)->inputSchema($handlerless)));
     }
 
     public function test_non_tool_bindings_are_refused(): void
