@@ -100,12 +100,19 @@ final class OpenApiDocumentBuilder
         $document['security'] = $this->security($operation);
 
         $pathParameters = self::pathParameters($operation);
-        $parameters = array_map(static fn (string $name): array => [
-            'name' => $name,
-            'in' => 'path',
-            'required' => true,
-            'schema' => ['type' => 'string'],
-        ], $pathParameters);
+        $input = $this->schema($operation->input);
+        $declared = is_array($input['properties'] ?? null) ? $input['properties'] : [];
+        $parameters = array_map(static function (string $name) use ($declared): array {
+            // The input's own definition of the parameter, when it has one.
+            $schema = is_array($declared[$name] ?? null) ? $declared[$name] : ['type' => 'string'];
+            $parameter = ['name' => $name, 'in' => 'path', 'required' => true];
+            if (is_string($schema['description'] ?? null)) {
+                $parameter['description'] = $schema['description'];
+                unset($schema['description']);
+            }
+
+            return [...$parameter, 'schema' => $schema];
+        }, $pathParameters);
         if (in_array($operation->safety->idempotencyKey, [IdempotencyKey::Header, IdempotencyKey::HeaderAndArgument], true)) {
             $parameters[] = [
                 'name' => 'Idempotency-Key',
@@ -115,7 +122,6 @@ final class OpenApiDocumentBuilder
                 'schema' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 255],
             ];
         }
-        $input = $this->schema($operation->input);
         if ($input !== null && in_array($method, ['GET', 'HEAD', 'DELETE'], true)) {
             array_push($parameters, ...self::queryParameters($input, $pathParameters));
         } elseif ($input !== null) {

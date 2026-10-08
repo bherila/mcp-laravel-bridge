@@ -141,6 +141,13 @@ final class OpenApiDocumentBuilderTest extends TestCase
         $show = (new OpenApiDocumentBuilder($registry, $this->settings()))->full()['paths']['/projects/{project}/things/{thing}']['get'];
         self::assertSame(['project', 'thing'], array_column($show['parameters'], 'name'));
 
+        $typed = (new OperationRegistry)->register(Fixtures::read('things.show', new Requirement(['things:read']), [
+            'rest' => new RestBinding('GET', '/things/{thing}'),
+            'input' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['thing'], 'properties' => ['thing' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Thing id']]],
+        ]));
+        $parameters = (new OpenApiDocumentBuilder($typed, $this->settings()))->full()['paths']['/things/{thing}']['get']['parameters'];
+        self::assertSame([['name' => 'thing', 'in' => 'path', 'required' => true, 'description' => 'Thing id', 'schema' => ['type' => 'integer', 'minimum' => 1]]], $parameters);
+
         $stale = (new OperationRegistry)->register(Fixtures::read('things.show', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing}', pathParameters: ['id'])]));
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('declares path parameters [id]');
