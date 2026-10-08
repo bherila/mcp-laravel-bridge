@@ -94,4 +94,20 @@ final class AvailabilityTest extends TestCase
         self::assertSame('b', $availability->withheld($principal, 'a')?->detail);
         self::assertSame('depends_on', $availability->withheld($principal, 'x')?->reason->value);
     }
+
+    public function test_the_implemented_view_follows_flags_through_dependencies(): void
+    {
+        $registry = (new OperationRegistry)->register(
+            Fixtures::read('a.list', new Requirement(['a:read'])),
+            Fixtures::write('a.create', new Requirement(['a:write'], flags: ['writes'])),
+            Fixtures::read('a.flow', new Requirement(['a:read']), ['requiresOperations' => ['a.step']]),
+            Fixtures::read('a.step', new Requirement(['a:read']), ['requiresOperations' => ['a.create']]),
+        );
+
+        $off = new Availability($registry, Fixtures::flags(['writes' => false]));
+        self::assertSame(['a.list'], array_map(static fn (Operation $o): string => $o->id, $off->implemented()));
+
+        $on = new Availability($registry, Fixtures::flags(['writes' => true]));
+        self::assertCount(4, $on->implemented());
+    }
 }

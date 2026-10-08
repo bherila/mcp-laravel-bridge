@@ -20,17 +20,44 @@ final class Availability
     ) {}
 
     /**
-     * Operations the installation offers at all (flags only). This is what
-     * server capabilities advertise, independent of who is asking.
+     * Operations the installation offers at all: deployment flags only, but
+     * followed through dependencies, so an operation resting on a switched-off
+     * one is not advertised. This is what server capabilities advertise,
+     * independent of who is asking.
      *
      * @return list<Operation>
      */
     public function implemented(): array
     {
+        $memo = [];
+
         return array_values(array_filter(
             $this->registry->all(),
-            fn (Operation $operation): bool => $this->flagFailure($operation) === null,
+            fn (Operation $operation): bool => $this->offered($operation->id, $memo, []),
         ));
+    }
+
+    /**
+     * @param  array<string, bool>  $memo
+     * @param  array<string, true>  $visiting
+     */
+    private function offered(string $operationId, array &$memo, array $visiting): bool
+    {
+        if (array_key_exists($operationId, $memo)) {
+            return $memo[$operationId];
+        }
+        $operation = $this->registry->find($operationId);
+        if ($operation === null || $this->flagFailure($operation) !== null) {
+            return $memo[$operationId] = false;
+        }
+        $visiting[$operationId] = true;
+        foreach ($operation->requiresOperations as $dependency) {
+            if (isset($visiting[$dependency]) || ! $this->offered($dependency, $memo, $visiting)) {
+                return $memo[$operationId] = false;
+            }
+        }
+
+        return $memo[$operationId] = true;
     }
 
     public function evaluate(Principal $principal): AvailabilityReport
