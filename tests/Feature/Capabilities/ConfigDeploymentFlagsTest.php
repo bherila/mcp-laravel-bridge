@@ -24,4 +24,17 @@ final class ConfigDeploymentFlagsTest extends TestCase
         config(['agent.writes' => false]);
         self::assertTrue($session->enabled('writes'), 'A first-party bypass passes agent-only cutovers');
     }
+
+    public function test_a_bypassed_child_still_answers_to_its_parent(): void
+    {
+        $flags = new ConfigDeploymentFlags([
+            'writes' => 'agent.writes',
+            'invoices' => ['key' => 'agent.invoices', 'parents' => ['writes']],
+        ], static fn (string $flag): bool => $flag === 'invoices');
+
+        config(['agent.writes' => false, 'agent.invoices' => false]);
+        self::assertFalse($flags->enabled('invoices'), 'The global kill switch still withdraws a bypassed child');
+        config(['agent.writes' => true]);
+        self::assertTrue($flags->enabled('invoices'), 'The bypass covers the child\'s own value');
+    }
 }

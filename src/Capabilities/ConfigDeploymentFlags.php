@@ -23,16 +23,22 @@ final class ConfigDeploymentFlags implements DeploymentFlags
 
     public function enabled(string $flag, array $seen = []): bool
     {
-        if ($this->bypass !== null && ($this->bypass)($flag)) {
-            return true;
-        }
         $definition = $this->flags[$flag] ?? null;
-        if ($definition === null || isset($seen[$flag])) {
+        if (isset($seen[$flag])) {
             return false;
         }
-        $key = is_string($definition) ? $definition : $definition['key'];
-        if (! (bool) config($key, false)) {
-            return false;
+        // A bypass stands in for this flag's own value only: its parents are
+        // still checked (or bypassed) themselves, so a global kill switch
+        // still withdraws everything beneath it.
+        $bypassed = $this->bypass !== null && ($this->bypass)($flag);
+        if (! $bypassed) {
+            if ($definition === null) {
+                return false;
+            }
+            $key = is_string($definition) ? $definition : $definition['key'];
+            if (! (bool) config($key, false)) {
+                return false;
+            }
         }
         foreach (is_array($definition) ? ($definition['parents'] ?? []) : [] as $parent) {
             if (! $this->enabled($parent, [...$seen, $flag => true])) {
