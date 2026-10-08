@@ -46,4 +46,31 @@ final class SchemaCatalogTest extends TestCase
 
         (new SchemaCatalog(__DIR__.'/../Fixtures/openapi-external.json'))->forOperation('things.list');
     }
+
+    public function test_operations_report_bindings_and_security_as_written(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'openapi');
+        file_put_contents($path, json_encode(['openapi' => '3.1.0', 'paths' => [
+            '/things' => [
+                'get' => ['operationId' => 'things.list', 'summary' => 'List things', 'security' => [['oauth2' => ['things:read']], ['apiToken' => []]]],
+                'parameters' => [],
+            ],
+            '/health' => ['get' => ['operationId' => 'health.get', 'security' => []]],
+            '/token' => ['delete' => ['operationId' => 'token.revoke', 'security' => [['oauth2' => []]]]],
+            '/legacy' => ['get' => ['operationId' => 'legacy.get']],
+        ]]));
+
+        try {
+            $operations = (new SchemaCatalog($path))->operations();
+        } finally {
+            unlink($path);
+        }
+
+        $this->assertSame(['things.list', 'health.get', 'token.revoke', 'legacy.get'], array_keys($operations));
+        $this->assertSame(['method' => 'GET', 'path' => '/things', 'security' => [['oauth2' => ['things:read']], ['apiToken' => []]], 'summary' => 'List things', 'description' => ''], $operations['things.list']);
+        $this->assertSame([], $operations['health.get']['security'], 'Explicitly public');
+        $this->assertSame([['oauth2' => []]], $operations['token.revoke']['security'], 'Any credential');
+        $this->assertNull($operations['legacy.get']['security'], 'Not declared');
+        $this->assertSame('DELETE', $operations['token.revoke']['method']);
+    }
 }

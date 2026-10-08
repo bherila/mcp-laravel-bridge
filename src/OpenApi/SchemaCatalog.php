@@ -88,6 +88,36 @@ final class SchemaCatalog
         return $this->operationScopes[$operationId];
     }
 
+    /**
+     * Every operation in the document by operationId, as written: its HTTP
+     * binding, its `security` (null when absent, `[]` when explicitly public)
+     * and its prose. Lets a spec-first application tell a public operation from
+     * an unknown one and register operations no tool fronts.
+     *
+     * @return array<string, array{method: string, path: string, security: list<array<string, list<string>>>|null, summary: string, description: string}>
+     */
+    public function operations(): array
+    {
+        $operations = [];
+        foreach ($this->document()['paths'] ?? [] as $path => $item) {
+            foreach (is_array($item) ? $item : [] as $method => $operation) {
+                if (! is_array($operation) || ! is_string($operation['operationId'] ?? null)) {
+                    continue;
+                }
+                $security = $operation['security'] ?? null;
+                $operations[$operation['operationId']] = [
+                    'method' => strtoupper((string) $method),
+                    'path' => (string) $path,
+                    'security' => is_array($security) ? array_values(array_filter($security, 'is_array')) : null,
+                    'summary' => is_string($operation['summary'] ?? null) ? $operation['summary'] : '',
+                    'description' => is_string($operation['description'] ?? null) ? $operation['description'] : '',
+                ];
+            }
+        }
+
+        return $operations;
+    }
+
     public function flush(): void
     {
         $this->document = null;

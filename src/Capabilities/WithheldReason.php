@@ -5,6 +5,7 @@ namespace Bherila\McpLaravelBridge\Capabilities;
 enum WithheldReason: string
 {
     case DeploymentFlag = 'deployment_flag';
+    case Unauthenticated = 'unauthenticated';
     case MissingScope = 'missing_scope';
     case MissingPermission = 'missing_permission';
     case GroupNotGranted = 'group_not_granted';

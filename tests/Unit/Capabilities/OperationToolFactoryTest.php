@@ -167,4 +167,14 @@ final class OperationToolFactoryTest extends TestCase
         self::assertSame('things.list', $inline->operationId());
         self::assertSame('things.list', $inline->responseOperationId());
     }
+
+    public function test_an_authenticated_operation_offers_oauth_with_only_the_connection_scopes(): void
+    {
+        $operation = Fixtures::write('token.revoke', Requirement::authenticated());
+
+        self::assertSame([['type' => 'oauth2', 'scopes' => []]], OperationToolFactory::securitySchemes($operation));
+        self::assertSame([['type' => 'oauth2', 'scopes' => ['mcp:use']]], OperationToolFactory::securitySchemes($operation, ['mcp:use']));
+        $tool = json_decode((string) json_encode((new OperationToolFactory(connectionScopes: ['mcp:use']))->tool($operation)), true);
+        self::assertSame([['type' => 'oauth2', 'scopes' => ['mcp:use']]], $tool['securitySchemes']);
+    }
 }

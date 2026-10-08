@@ -2,6 +2,7 @@
 
 namespace Bherila\McpLaravelBridge\Tests\Unit\Capabilities;
 
+use Bherila\McpLaravelBridge\Capabilities\AuthenticatedPrincipal;
 use Bherila\McpLaravelBridge\Capabilities\Availability;
 use Bherila\McpLaravelBridge\Capabilities\Operation;
 use Bherila\McpLaravelBridge\Capabilities\OperationPolicy;
@@ -109,5 +110,39 @@ final class AvailabilityTest extends TestCase
 
         $on = new Availability($registry, Fixtures::flags(['writes' => true]));
         self::assertCount(4, $on->implemented());
+    }
+
+    public function test_an_authenticated_requirement_needs_a_principal_that_says_so(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::write('token.revoke', Requirement::authenticated()));
+        $availability = new Availability($registry, Fixtures::flags([]));
+        $authenticated = static fn (bool $is): AuthenticatedPrincipal => new class($is) implements AuthenticatedPrincipal
+        {
+            public function __construct(private bool $is) {}
+
+            public function isAuthenticated(): bool
+            {
+                return $this->is;
+            }
+
+            public function hasScope(string $scope): bool
+            {
+                return false;
+            }
+
+            public function can(string $permission): bool
+            {
+                return false;
+            }
+
+            public function allowsGroup(?string $group): bool
+            {
+                return true;
+            }
+        };
+
+        $this->assertNull($availability->withheld($authenticated(true), 'token.revoke'), 'No scope or permission is needed');
+        $this->assertSame('unauthenticated', $availability->withheld($authenticated(false), 'token.revoke')?->reason->value);
+        $this->assertSame('unauthenticated', $availability->withheld(Fixtures::principal(scopes: ['anything']), 'token.revoke')?->reason->value, 'A plain principal fails closed');
     }
 }
