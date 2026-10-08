@@ -188,6 +188,25 @@ final class OpenApiDocumentBuilderTest extends TestCase
         OpenApiDocumentBuilder::write(['openapi' => '3.1.0'], sys_get_temp_dir().'/missing-'.bin2hex(random_bytes(4)).'/openapi.json');
     }
 
+    public function test_a_referenced_input_types_its_path_parameters(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'openapi');
+        file_put_contents($path, json_encode(['openapi' => '3.1.0', 'paths' => new \stdClass, 'components' => ['schemas' => [
+            'ThingKey' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['thing'], 'properties' => ['thing' => ['type' => 'integer', 'minimum' => 1]]],
+        ]]]));
+        try {
+            $registry = (new OperationRegistry)->register(Fixtures::write('things.archive', new Requirement(['things:write']), [
+                'rest' => new RestBinding('POST', '/things/{thing}/archive'),
+                'input' => SchemaRef::openApi('ThingKey'),
+            ]));
+            $parameters = (new OpenApiDocumentBuilder($registry, $this->settings(), new SchemaCatalog($path)))->full()['paths']['/things/{thing}/archive']['post']['parameters'];
+        } finally {
+            unlink($path);
+        }
+
+        self::assertSame(['type' => 'integer', 'minimum' => 1], $parameters[0]['schema']);
+    }
+
     public function test_two_operations_on_one_route_are_refused(): void
     {
         $registry = (new OperationRegistry)->register(

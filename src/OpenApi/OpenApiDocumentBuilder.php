@@ -102,7 +102,11 @@ final class OpenApiDocumentBuilder
 
         $pathParameters = self::pathParameters($operation);
         $input = $this->schema($operation->input);
-        $declared = is_array($input['properties'] ?? null) ? $input['properties'] : [];
+        // A referenced input is resolved to read its property definitions.
+        $resolved = $operation->input instanceof SchemaRef
+            ? $operation->input->resolve($this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.'))
+            : $input;
+        $declared = is_array($resolved['properties'] ?? null) ? $resolved['properties'] : [];
         $parameters = array_map(static function (string $name) use ($declared): array {
             // The input's own definition of the parameter, when it has one.
             $schema = is_array($declared[$name] ?? null) ? $declared[$name] : ['type' => 'string'];
