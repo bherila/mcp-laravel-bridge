@@ -182,7 +182,13 @@ final class OpenApiDocumentBuilder
             $document["{$x}-requires-operations"] = $operation->requiresOperations;
         }
         foreach ($operation->extensions as $key => $value) {
-            $document[str_starts_with((string) $key, 'x-') ? (string) $key : "{$x}-{$key}"] = $value;
+            $name = str_starts_with((string) $key, 'x-') ? (string) $key : "{$x}-{$key}";
+            if (array_key_exists($name, $document)) {
+                // Generated metadata describes what the operation does; an
+                // extension must never restate it (e.g. a destructive write as safe).
+                throw new LogicException("Operation [{$operation->id}] declares extension [{$name}], which would overwrite generated metadata.");
+            }
+            $document[$name] = $value;
         }
 
         return $document;

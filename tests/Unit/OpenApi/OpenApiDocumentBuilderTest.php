@@ -219,6 +219,19 @@ final class OpenApiDocumentBuilderTest extends TestCase
         self::assertNotContains(['apiToken' => []], $paths['/mcp/only']['get']['security']);
     }
 
+    public function test_an_extension_cannot_overwrite_generated_metadata(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::write('things.purge', new Requirement(['things:write']), [
+            'rest' => new RestBinding('DELETE', '/things'),
+            'effect' => Effect::Destructive,
+            'extensions' => ['effect' => 'read'],
+        ]));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('[x-agent-effect]');
+        (new OpenApiDocumentBuilder($registry, $this->settings()))->full();
+    }
+
     public function test_an_optional_placeholder_is_refused(): void
     {
         $registry = (new OperationRegistry)->register(Fixtures::read('things.list', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing?}')]));
