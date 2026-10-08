@@ -1,0 +1,49 @@
+<?php
+
+namespace Bherila\McpLaravelBridge\Capabilities;
+
+/**
+ * One agent operation, declared once. REST routing, the OpenAPI document, MCP
+ * tools and the availability view are all derived from it.
+ */
+final readonly class Operation
+{
+    /**
+     * @param  array<string, mixed>|SchemaRef|null  $input
+     * @param  array<string, mixed>|SchemaRef|null  $output
+     * @param  list<string>  $requiresOperations  ids that must also be available (e.g. a prompt's tools)
+     * @param  list<string>  $tags
+     * @param  array<string, mixed>  $extensions  emitted as vendor extensions
+     */
+    public function __construct(
+        public string $id,
+        public string $title,
+        public string $description,
+        public Effect $effect,
+        public Requirement $requirement,
+        public bool $idempotent = true,
+        public WriteSafety $safety = new WriteSafety,
+        public ?RestBinding $rest = null,
+        public ?McpBinding $mcp = null,
+        public array|SchemaRef|null $input = null,
+        public array|SchemaRef|null $output = null,
+        public array $requiresOperations = [],
+        public array $tags = [],
+        public array $extensions = [],
+        public ?string $deprecation = null,
+    ) {}
+
+    public function mcpName(): ?string
+    {
+        if ($this->mcp === null) {
+            return null;
+        }
+
+        return $this->mcp->name ?? $this->id;
+    }
+
+    public function group(): ?string
+    {
+        return $this->requirement->group;
+    }
+}

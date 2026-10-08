@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased (0.3.0)
+
+- **Capability registry** (`Bherila\McpLaravelBridge\Capabilities`). It lets an application declare
+  each agent operation once:
+  - `Operation`, with an `Effect`, a `Requirement` (scopes with an All/Any rule, permissions all/any,
+    group, nested deployment flags), `WriteSafety`, and REST and MCP bindings;
+  - input and output schemas, inline or `SchemaRef` into a shipped OpenAPI document.
+
+  `OperationRegistry` refuses impossible declarations: duplicate ids or MCP names (including legacy
+  aliases), an operation with no transport, a non-public operation that requires nothing, and a write
+  with no safety policy. It reports open schemas and unknown dependencies for a test to pin.
+- **Application adapters:** `Principal`, `DeploymentFlags` (`ConfigDeploymentFlags` with nested
+  parents and a first-party bypass hook) and `OperationPolicy`.
+- **`Availability`** gives `implemented()` (flags only) and `evaluate()`, which returns available
+  operations plus withheld ones with a reason an agent can relay: `deployment_flag`, `missing_scope`,
+  `missing_permission`, `group_not_granted`, `policy` or `depends_on`.
+- **`OperationToolFactory`** builds MCP tools and `ToolDefinition`s from operations:
+  - the reflected handler schema with the declared body merged over it, closed;
+  - output from the declaration or the document;
+  - annotations from `Effect`;
+  - OAuth security schemes from the scope rule.
+- **The package boundary changes.** The registry generates surfaces from declarations. Applications
+  still own authorization, domain actions, response content, instructions and rate limiting.
+
 ## 0.2.1
 
 - Allow and expose the MCP 2026 `Mcp-Name` HTTP header by default so approved

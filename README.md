@@ -14,7 +14,7 @@ The package provides:
   middleware selection;
 - a synthetic fixture server and assertions for application conformance tests.
 
-Applications continue to own tool catalogs, OAuth scopes, authorization, response components, domain DTOs, write flags, and server instructions. This package does not auto-expose OpenAPI operations.
+Applications own authorization, domain actions, response content, write-flag configuration and server instructions. Since 0.3, an application can declare each operation once in a capability registry. The package then derives the MCP tools and the availability view from that declaration; OpenAPI and routing follow in 0.4. It never exposes an operation the application did not declare.
 
 ## Installation
 
@@ -227,3 +227,31 @@ upgrade.
 ## Long-lived workers
 
 The internal REST transport temporarily replaces Laravel's container-bound request while an in-process subrequest runs and always restores it after success or failure. This is safe under normal PHP request execution. Concurrently interleaved requests in the same process (including an Octane task model that permits interleaving during dispatch) are not supported; deploy the bridge in a non-interleaving request context or provide an isolated transport adapter.
+
+
+## Capability registry
+
+Declare each agent operation once. The package derives MCP tools, security schemes, annotations and an availability view with reasons. OpenAPI generation and route binding arrive in 0.4.
+
+```php
+use Bherila\McpLaravelBridge\Capabilities\{Effect, IdempotencyKey, McpBinding, Operation, OperationRegistry, Requirement, RestBinding, SchemaRef, WriteSafety};
+
+$registry = (new OperationRegistry)->register(new Operation(
+    id: 'things.create',
+    title: 'Create thing',
+    description: 'Create a thing.',
+    effect: Effect::LocalWrite,
+    requirement: new Requirement(scopes: ['things:write'], flags: ['writes']),
+    safety: new WriteSafety(idempotencyKey: IdempotencyKey::HeaderAndArgument, expectedVersion: true),
+    rest: new RestBinding('POST', '/things', routeName: 'api.things.store', successStatuses: [201]),
+    mcp: new McpBinding(handler: [ThingTools::class, 'create']),
+    input: SchemaRef::requestOf('things.create'),   // spec-first; or an inline array (code-first)
+    output: SchemaRef::responseOf('things.create'),
+));
+```
+
+- **`Availability`** takes your `Principal` adapter (scopes, permissions, groups), `DeploymentFlags` (`ConfigDeploymentFlags` supports nested cutovers and a first-party bypass) and an optional `OperationPolicy`.
+  - `evaluate($principal)` returns the available operations, plus the withheld ones with a reason an agent can relay.
+  - `implemented()` is the flags-only view that server capabilities should advertise.
+- **`OperationToolFactory`** turns available operations into `ToolWithSecuritySchemes`, or into `ToolDefinition`s for an existing server factory.
+- **Contract test:** pin `$registry->contractViolations() === []` in a test.
