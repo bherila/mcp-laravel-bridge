@@ -154,6 +154,18 @@ final class OpenApiDocumentBuilderTest extends TestCase
         (new OpenApiDocumentBuilder($stale, $this->settings()))->full();
     }
 
+    public function test_a_query_input_with_constraints_parameters_cannot_express_is_refused(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::read('things.search', new Requirement(['things:read']), [
+            'rest' => new RestBinding('GET', '/things/search'),
+            'input' => ['type' => 'object', 'additionalProperties' => false, 'properties' => ['a' => ['type' => 'string'], 'b' => ['type' => 'string']], 'oneOf' => [['required' => ['a']], ['required' => ['b']]]],
+        ]));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('oneOf');
+        (new OpenApiDocumentBuilder($registry, $this->settings()))->full();
+    }
+
     public function test_two_operations_on_one_route_are_refused(): void
     {
         $registry = (new OperationRegistry)->register(

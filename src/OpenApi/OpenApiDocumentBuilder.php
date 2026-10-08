@@ -123,7 +123,10 @@ final class OpenApiDocumentBuilder
             ];
         }
         if ($input !== null && in_array($method, ['GET', 'HEAD', 'DELETE'], true)) {
-            array_push($parameters, ...self::queryParameters($input, $pathParameters));
+            $query = $operation->input instanceof SchemaRef
+                ? $operation->input->resolve($this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.'))
+                : $input;
+            array_push($parameters, ...self::queryParameters($operation->id, $query, $pathParameters));
         } elseif ($input !== null) {
             $document['requestBody'] = [
                 'required' => true,
@@ -320,8 +323,15 @@ final class OpenApiDocumentBuilder
      * @param  list<string>  $pathParameters
      * @return list<array<string, mixed>>
      */
-    private static function queryParameters(array $schema, array $pathParameters): array
+    private static function queryParameters(string $operationId, array $schema, array $pathParameters): array
     {
+        // Query parameters carry each property and whether it is required,
+        // nothing more: a combinator, a dependency or a conditional would be
+        // dropped and the document would accept what the operation refuses.
+        $unsupported = array_diff(array_keys($schema), ['type', 'properties', 'required', 'additionalProperties', 'description', 'title', '$schema', '$comment']);
+        if ($unsupported !== [] || str_contains((string) json_encode($schema['properties'] ?? []), '"$ref"')) {
+            throw new LogicException("Operation [{$operationId}] takes query parameters, but its input uses ".($unsupported === [] ? 'references' : implode(', ', $unsupported)).', which query parameters cannot express.');
+        }
         $required = array_flip(array_filter(is_array($schema['required'] ?? null) ? $schema['required'] : [], 'is_string'));
         $parameters = [];
         foreach (is_array($schema['properties'] ?? null) ? $schema['properties'] : [] as $name => $property) {
