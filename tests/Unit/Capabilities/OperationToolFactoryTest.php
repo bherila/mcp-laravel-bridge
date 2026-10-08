@@ -139,4 +139,15 @@ final class OperationToolFactoryTest extends TestCase
             OperationToolFactory::securitySchemes(Fixtures::read('x', new Requirement(['things:read', 'things:read'], ScopeRule::Any))),
         );
     }
+
+    public function test_an_empty_output_object_serializes_its_properties_as_an_object(): void
+    {
+        $operation = Fixtures::read('things.ping', new Requirement(['things:read']), [
+            'output' => ['type' => 'object', 'properties' => [], 'additionalProperties' => false, 'oneOf' => [['type' => 'object', 'properties' => []]]],
+        ]);
+
+        $json = (string) json_encode((new OperationToolFactory)->outputSchema($operation));
+        self::assertStringContainsString('"properties":{}', $json);
+        self::assertStringNotContainsString('"properties":[]', $json);
+    }
 }

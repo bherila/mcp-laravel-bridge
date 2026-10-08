@@ -111,7 +111,29 @@ final class OperationToolFactory
     /** @return array<string, mixed>|null */
     public function outputSchema(Operation $operation): ?array
     {
-        return $this->resolve($operation->output);
+        $schema = $this->resolve($operation->output);
+
+        return $schema === null ? null : self::objectProperties($schema);
+    }
+
+    /**
+     * A decoded document turns `"properties": {}` into an empty PHP array,
+     * which would serialize back as `[]`; restore it as an object at every depth.
+     *
+     * @param  array<array-key, mixed>  $schema
+     * @return array<array-key, mixed>
+     */
+    private static function objectProperties(array $schema): array
+    {
+        foreach ($schema as $key => $value) {
+            if ($key === 'properties' && $value === []) {
+                $schema[$key] = new \stdClass;
+            } elseif (is_array($value)) {
+                $schema[$key] = self::objectProperties($value);
+            }
+        }
+
+        return $schema;
     }
 
     /**
