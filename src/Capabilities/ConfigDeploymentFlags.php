@@ -24,7 +24,9 @@ final class ConfigDeploymentFlags implements DeploymentFlags
     public function enabled(string $flag, array $seen = []): bool
     {
         $definition = $this->flags[$flag] ?? null;
-        if (isset($seen[$flag])) {
+        // An undeclared (or misspelled) flag is off for everyone: the bypass
+        // must not turn configuration drift into an open operation.
+        if ($definition === null || isset($seen[$flag])) {
             return false;
         }
         // A bypass stands in for this flag's own value only: its parents are
@@ -32,9 +34,6 @@ final class ConfigDeploymentFlags implements DeploymentFlags
         // still withdraws everything beneath it.
         $bypassed = $this->bypass !== null && ($this->bypass)($flag);
         if (! $bypassed) {
-            if ($definition === null) {
-                return false;
-            }
             $key = is_string($definition) ? $definition : $definition['key'];
             if (! (bool) config($key, false)) {
                 return false;

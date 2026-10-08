@@ -37,4 +37,16 @@ final class ConfigDeploymentFlagsTest extends TestCase
         config(['agent.writes' => true]);
         self::assertTrue($flags->enabled('invoices'), 'The bypass covers the child\'s own value');
     }
+
+    public function test_a_bypass_never_enables_an_undeclared_flag(): void
+    {
+        $flags = new ConfigDeploymentFlags([
+            'writes' => 'agent.writes',
+            'invoices' => ['key' => 'agent.invoices', 'parents' => ['writes', 'writse']],
+        ], static fn (string $flag): bool => true);
+
+        self::assertFalse($flags->enabled('unknown'), 'A misspelled flag stays off for a bypassed caller');
+        self::assertFalse($flags->enabled('invoices'), 'So does a flag whose parent is misspelled');
+        self::assertTrue($flags->enabled('writes'));
+    }
 }
