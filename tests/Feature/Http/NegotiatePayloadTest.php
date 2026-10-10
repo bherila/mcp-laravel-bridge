@@ -30,6 +30,7 @@ final class NegotiatePayloadTest extends TestCase
             Fixtures::write('things.create', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things')]),
             Fixtures::write('things.upload', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things/upload', requestContentTypes: ['multipart/form-data'])]),
             Fixtures::read('things.file', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing}/file')]),
+            Fixtures::write('things.fail', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things/fail')]),
         );
         $this->app->instance(OperationRegistry::class, $this->registry);
         $this->app->instance(Availability::class, new Availability($this->registry, new ConfigDeploymentFlags([])));
@@ -51,6 +52,10 @@ final class NegotiatePayloadTest extends TestCase
             Route::operation('things.show', static fn (string $thing) => ['thing' => $thing, 'tags' => ['a', 'b']]);
             Route::operation('things.create', static fn (Request $request) => response()->json(['created' => $request->input('name'), 'all' => $request->all()], 201));
             Route::operation('things.upload', static fn () => ['ok' => true]);
+            Route::operation('things.fail', static function (Request $request): never {
+                $request->validate(['name' => 'required']);
+                abort(500);
+            });
             Route::operation('things.file', static fn () => response('%PDF-1.7', 200, ['Content-Type' => 'application/pdf']));
         });
         Route::getRoutes()->refreshNameLookups();
@@ -146,6 +151,18 @@ final class NegotiatePayloadTest extends TestCase
         $this->call('POST', '/api/things', [], [], [], ['CONTENT_TYPE' => 'application/x-test', 'HTTP_ACCEPT' => 'application/x-test'], 'not decodable')
             ->assertForbidden()
             ->assertHeader('Content-Type', 'application/json');
+    }
+
+    public function test_an_exception_rendered_below_the_middleware_is_negotiated_too(): void
+    {
+        $this->withCodecs();
+
+        $response = $this->post('/api/things/fail', [], ['X-Test-Scopes' => 'things:write', 'Accept' => 'application/x-test']);
+
+        $response->assertStatus(422)->assertHeader('Content-Type', 'application/x-test');
+        self::assertStringStartsWith("TEST\n", (string) $response->getContent());
+        self::assertSame('The name field is required.', json_decode(substr((string) $response->getContent(), 5), true)['message']);
+        self::assertStringContainsString('Accept', (string) $response->headers->get('Vary'));
     }
 
     public function test_a_non_json_response_is_left_alone(): void

@@ -50,9 +50,15 @@ final class NegotiatePayload
             $request->request = $request->json();
         }
 
+        $codec = $codecs->negotiate($request->headers->get('Accept'));
+        if ($codec !== null) {
+            // Downstream, the request wants JSON: that is what the controller
+            // and the exception handler (validation, 404, 500) must produce
+            // for this middleware to re-encode, instead of a redirect or HTML.
+            $request->headers->set('Accept', PayloadCodecs::JSON);
+        }
         $response = $next($request);
         $response->setVary('Accept', false);
-        $codec = $codecs->negotiate($request->headers->get('Accept'));
         if ($codec === null || ! self::isJson($response) || $response->getContent() === '' || $response->getContent() === false) {
             return $response;
         }
