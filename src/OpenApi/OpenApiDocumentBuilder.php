@@ -91,58 +91,84 @@ final class OpenApiDocumentBuilder
         $method = strtoupper($rest->method);
         $x = $this->settings->extensionPrefix;
 
-        $document = [
-            'operationId' => $operation->id,
-            'summary' => $operation->title,
-            'description' => $operation->description,
-        ];
+        $document = ['operationId' => $operation->id];
+        $summary = $rest->summary ?? ($this->settings->summaries ? $operation->title : false);
+        if ($summary !== false) {
+            $document['summary'] = $summary;
+        }
+        $description = $rest->description ?? $operation->description;
+        if ($operation->deprecation !== null) {
+            $deprecated = "Deprecated: {$operation->deprecation}";
+            $description = $description === false ? $deprecated : "{$description}\n\n{$deprecated}";
+        }
+        if ($description !== false) {
+            $document['description'] = $description;
+        }
         if ($operation->tags !== []) {
             $document['tags'] = $operation->tags;
         }
         if ($operation->deprecation !== null) {
             $document['deprecated'] = true;
-            $document['description'] .= "\n\nDeprecated: {$operation->deprecation}";
         }
         $document['security'] = $this->security($operation);
 
         $pathParameters = self::pathParameters($operation);
-        $input = $this->schema($operation->input);
-        // A referenced input is resolved to read its property definitions.
-        $resolved = $operation->input instanceof SchemaRef
-            ? $operation->input->resolve($this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.'))
-            : $input;
-        $declared = is_array($resolved['properties'] ?? null) ? $resolved['properties'] : [];
-        $parameters = array_map(static function (string $name) use ($declared): array {
-            // The input's own definition of the parameter, when it has one.
-            $schema = is_array($declared[$name] ?? null) ? $declared[$name] : ['type' => 'string'];
-            $parameter = ['name' => $name, 'in' => 'path', 'required' => true];
-            if (is_string($schema['description'] ?? null)) {
-                $parameter['description'] = $schema['description'];
-                unset($schema['description']);
+        $body = null;
+        $noBody = $rest->requestSchema === false;
+        $queryMethod = in_array($method, ['GET', 'HEAD', 'DELETE'], true);
+        if ($rest->requestSchema !== null && $rest->requestSchema !== false) {
+            if (in_array($method, ['GET', 'HEAD'], true)) {
+                // HTTP gives a GET or HEAD body no meaning; a client would drop it.
+                throw new LogicException("Operation [{$operation->id}] declares a request body on {$method}, which has no defined meaning.");
             }
-
-            return [...$parameter, 'schema' => $schema];
-        }, $pathParameters);
-        if (in_array($operation->safety->idempotencyKey, [IdempotencyKey::Header, IdempotencyKey::HeaderAndArgument], true)) {
-            $parameters[] = [
-                'name' => 'Idempotency-Key',
-                'in' => 'header',
-                'required' => $operation->safety->idempotencyKey === IdempotencyKey::Header,
-                'description' => 'Reuse the same key only to retry an identical request.',
-                'schema' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 255],
-            ];
+            $body = $this->declaredSchema($rest->requestSchema, "Operation [{$operation->id}]");
         }
-        if ($input !== null && in_array($method, ['GET', 'HEAD', 'DELETE'], true)) {
-            $query = $operation->input instanceof SchemaRef
-                ? $operation->input->resolve($this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.'))
-                : $input;
-            array_push($parameters, ...self::queryParameters($operation->id, $query, $pathParameters));
-        } elseif ($input !== null) {
+
+        if ($rest->parameters !== null) {
+            $parameters = $this->declaredParameters($operation, $pathParameters);
+            if ($body === null && ! $noBody && $operation->input !== null && ! $queryMethod) {
+                $body = $this->schema($operation->input);
+            }
+        } else {
+            // A declared body replaces the input; otherwise the input becomes
+            // query parameters or the body, as it always has.
+            $input = $body === null && ($queryMethod || ! $noBody) ? $this->schema($operation->input) : null;
+            // Resolved only to type path or query parameters: an input the
+            // binding replaces needs no catalog.
+            $resolved = $pathParameters !== [] || ($input !== null && $queryMethod) ? $this->resolvedInput($operation) : null;
+            $declared = is_array($resolved['properties'] ?? null) ? $resolved['properties'] : [];
+            $parameters = array_map(static function (string $name) use ($declared): array {
+                // The input's own definition of the parameter, when it has one.
+                $schema = is_array($declared[$name] ?? null) ? $declared[$name] : ['type' => 'string'];
+                $parameter = ['name' => $name, 'in' => 'path', 'required' => true];
+                if (is_string($schema['description'] ?? null)) {
+                    $parameter['description'] = $schema['description'];
+                    unset($schema['description']);
+                }
+
+                return [...$parameter, 'schema' => $schema];
+            }, $pathParameters);
+            if (in_array($operation->safety->idempotencyKey, [IdempotencyKey::Header, IdempotencyKey::HeaderAndArgument], true)) {
+                $parameters[] = [
+                    'name' => 'Idempotency-Key',
+                    'in' => 'header',
+                    'required' => $operation->safety->idempotencyKey === IdempotencyKey::Header,
+                    'description' => 'Reuse the same key only to retry an identical request.',
+                    'schema' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 255],
+                ];
+            }
+            if ($input !== null && $queryMethod) {
+                array_push($parameters, ...self::queryParameters($operation->id, (array) $resolved, $pathParameters));
+            } elseif ($input !== null) {
+                $body = $input;
+            }
+        }
+        if ($body !== null) {
             $document['requestBody'] = [
-                'required' => true,
+                'required' => $rest->requestBodyRequired,
                 'content' => array_fill_keys(
                     array_values(array_unique([...$rest->requestContentTypes, ...$this->settings->extraMediaTypes])),
-                    ['schema' => $input],
+                    ['schema' => $body],
                 ),
             ];
         }
@@ -150,36 +176,26 @@ final class OpenApiDocumentBuilder
             $document['parameters'] = $parameters;
         }
 
-        $output = $this->schema($operation->output);
-        $responses = [];
-        foreach ($rest->successStatuses as $status) {
-            $response = ['description' => $status === 201 ? 'Created' : 'Success'];
-            if ($output !== null && $status !== 204) {
-                $response['content'] = array_fill_keys(
-                    array_values(array_unique(['application/json', ...$this->settings->extraMediaTypes])),
-                    ['schema' => $output],
-                );
-            }
-            $responses[(string) $status] = $response;
-        }
-        $document['responses'] = $responses;
+        $document['responses'] = $this->responses($operation);
 
-        $document["{$x}-effect"] = $operation->effect->value;
-        $document["{$x}-idempotent"] = $operation->isIdempotent();
-        if ($operation->safety->declaresAnything()) {
-            $document["{$x}-write-safety"] = array_filter([
-                'idempotency_key' => $operation->safety->idempotencyKey === IdempotencyKey::None ? null : $operation->safety->idempotencyKey->value,
-                'expected_version' => $operation->safety->expectedVersion ?: null,
-                'confirm' => $operation->safety->confirm ?: null,
-                'dry_run_default' => $operation->safety->dryRunDefault ?: null,
-                'note' => $operation->safety->note,
-            ], static fn (mixed $value): bool => $value !== null);
-        }
-        if ($operation->mcpName() !== null) {
-            $document["{$x}-mcp-tool"] = $operation->mcpName();
-        }
-        if ($operation->requiresOperations !== []) {
-            $document["{$x}-requires-operations"] = $operation->requiresOperations;
+        if ($this->settings->agentExtensions) {
+            $document["{$x}-effect"] = $operation->effect->value;
+            $document["{$x}-idempotent"] = $operation->isIdempotent();
+            if ($operation->safety->declaresAnything()) {
+                $document["{$x}-write-safety"] = array_filter([
+                    'idempotency_key' => $operation->safety->idempotencyKey === IdempotencyKey::None ? null : $operation->safety->idempotencyKey->value,
+                    'expected_version' => $operation->safety->expectedVersion ?: null,
+                    'confirm' => $operation->safety->confirm ?: null,
+                    'dry_run_default' => $operation->safety->dryRunDefault ?: null,
+                    'note' => $operation->safety->note,
+                ], static fn (mixed $value): bool => $value !== null);
+            }
+            if ($operation->mcpName() !== null) {
+                $document["{$x}-mcp-tool"] = $operation->mcpName();
+            }
+            if ($operation->requiresOperations !== []) {
+                $document["{$x}-requires-operations"] = $operation->requiresOperations;
+            }
         }
         foreach ($operation->extensions as $key => $value) {
             $name = str_starts_with((string) $key, 'x-') ? (string) $key : "{$x}-{$key}";
@@ -192,6 +208,237 @@ final class OpenApiDocumentBuilder
         }
 
         return $document;
+    }
+
+    /**
+     * Success responses from the binding's statuses, then the responses it
+     * declares (replacing a success response of the same status), then the
+     * shared ones for any status still undescribed.
+     *
+     * @return array<int|string, mixed>
+     */
+    private function responses(Operation $operation): array
+    {
+        $rest = $operation->rest ?? throw new LogicException("Operation [{$operation->id}] has no REST binding.");
+        $stray = array_diff(array_keys($rest->responseDescriptions), $rest->successStatuses);
+        if ($stray !== []) {
+            throw new LogicException("Operation [{$operation->id}] describes status [".implode(', ', $stray).'], which is not one of its success statuses.');
+        }
+        // Every success response the binding replaces needs no output schema.
+        $replaced = array_map(static fn (int|string $status): string => (string) $status, array_keys($rest->responses));
+        $generated = array_filter($rest->successStatuses, static fn (int $status): bool => ! in_array((string) $status, $replaced, true));
+        $output = match (true) {
+            $rest->successStatuses !== [] && $generated === [] => null,
+            $rest->responseSchema !== null => $this->declaredSchema($rest->responseSchema, "Operation [{$operation->id}]"),
+            default => $this->schema($operation->output),
+        };
+        $responses = [];
+        foreach ($rest->successStatuses as $status) {
+            $response = ['description' => $rest->responseDescriptions[$status] ?? ($status === 201 ? 'Created' : 'Success')];
+            if ($output !== null && $status !== 204) {
+                $response['content'] = array_fill_keys(
+                    array_values(array_unique(['application/json', ...$this->settings->extraMediaTypes])),
+                    ['schema' => $output],
+                );
+            }
+            $responses[(string) $status] = $response;
+        }
+        foreach ($rest->responses as $status => $response) {
+            $responses[self::status($operation, $status)] = $this->response($operation, $response);
+        }
+        foreach ($this->settings->sharedResponses as $status => $name) {
+            $status = self::status($operation, $status);
+            if (! array_key_exists($status, $responses)) {
+                $responses[$status] = $this->response($operation, $name);
+            }
+        }
+
+        return $responses;
+    }
+
+    /** @param  string|array<string, mixed>  $response */
+    private function response(Operation $operation, mixed $response): array
+    {
+        if (is_string($response)) {
+            if (! isset($this->settings->responses[$response])) {
+                throw new LogicException("Operation [{$operation->id}] names response [{$response}], which OpenApiSettings::\$responses does not define.");
+            }
+
+            return ['$ref' => '#/components/responses/'.$response];
+        }
+        if (! is_array($response) || ! is_string($response['description'] ?? null)) {
+            throw new LogicException("Operation [{$operation->id}] declares a response that is neither a component name nor a response object with a description.");
+        }
+        self::assertResponseObject($response, "Operation [{$operation->id}]");
+        $this->referenceComponentsIn($response, "Operation [{$operation->id}]");
+
+        return self::fragmentMaps($response);
+    }
+
+    private static function status(Operation $operation, int|string $status): string
+    {
+        $status = (string) $status;
+        if ($status !== 'default' && preg_match('/^[1-5](\d\d|XX)$/', $status) !== 1) {
+            throw new LogicException("Operation [{$operation->id}] declares response status [{$status}], which is not an HTTP status, a range such as 4XX, or default.");
+        }
+
+        return $status;
+    }
+
+    /**
+     * A binding's declared parameter list, as written. It must name every path
+     * placeholder exactly once (and nothing else in the path), and document the
+     * idempotency header the operation reads.
+     *
+     * @param  list<string>  $placeholders
+     * @return list<array<string, mixed>>
+     */
+    private function declaredParameters(Operation $operation, array $placeholders): array
+    {
+        $parameters = [];
+        $seen = [];
+        $inPath = [];
+        foreach ($operation->rest?->parameters ?? [] as $entry) {
+            if (is_string($entry)) {
+                $resolved = $this->settings->parameters[$entry]
+                    ?? throw new LogicException("Operation [{$operation->id}] names parameter [{$entry}], which OpenApiSettings::\$parameters does not define.");
+                $parameters[] = ['$ref' => '#/components/parameters/'.$entry];
+            } elseif (is_array($entry) && ! array_key_exists('$ref', $entry)) {
+                $resolved = $entry;
+                $this->referenceComponentsIn($entry, "Operation [{$operation->id}]");
+                $parameters[] = self::fragmentMaps($entry);
+            } else {
+                throw new LogicException("Operation [{$operation->id}] declares a parameter that is neither a component name nor an inline parameter object.");
+            }
+            self::assertParameterObject($resolved, "Operation [{$operation->id}]");
+            $name = (string) $resolved['name'];
+            $in = (string) $resolved['in'];
+            // Header names are case-insensitive; the rest are exact.
+            $key = $in.':'.($in === 'header' ? strtolower($name) : $name);
+            if (isset($seen[$key])) {
+                throw new LogicException("Operation [{$operation->id}] declares the {$in} parameter [{$name}] twice.");
+            }
+            $seen[$key] = $resolved;
+            if ($in === 'path') {
+                $inPath[] = $name;
+            }
+        }
+        $missing = array_diff($placeholders, $inPath);
+        $stray = array_diff($inPath, $placeholders);
+        if ($missing !== [] || $stray !== []) {
+            throw new LogicException("Operation [{$operation->id}] declares path parameters [".implode(', ', $inPath)."] but its path {$operation->rest?->path} has [".implode(', ', $placeholders).'].');
+        }
+        $key = $operation->safety->idempotencyKey;
+        if (in_array($key, [IdempotencyKey::Header, IdempotencyKey::HeaderAndArgument], true)) {
+            $header = $seen['header:idempotency-key'] ?? throw new LogicException("Operation [{$operation->id}] reads an Idempotency-Key header that its declared parameters do not document.");
+            if ($key === IdempotencyKey::Header && ($header['required'] ?? false) !== true) {
+                throw new LogicException("Operation [{$operation->id}] requires an Idempotency-Key header that its declared parameters mark optional.");
+            }
+        }
+
+        return $parameters;
+    }
+
+    /**
+     * A parameter object OpenAPI accepts: a name, a location, and exactly one
+     * of `schema` or `content`.
+     *
+     * @param  array<string, mixed>  $parameter
+     */
+    private static function assertParameterObject(array $parameter, string $owner): void
+    {
+        if (! is_string($parameter['name'] ?? null) || ! in_array($parameter['in'] ?? null, ['path', 'query', 'header', 'cookie'], true)) {
+            throw new LogicException("{$owner} declares a parameter without a name and a location.");
+        }
+        if (array_key_exists('schema', $parameter) === array_key_exists('content', $parameter)) {
+            throw new LogicException("{$owner} declares parameter [{$parameter['name']}] without exactly one of a schema or a content map.");
+        }
+        if ($parameter['in'] === 'path' && ($parameter['required'] ?? null) !== true) {
+            throw new LogicException("{$owner} declares path parameter [{$parameter['name']}] as optional; OpenAPI path parameters are always required.");
+        }
+    }
+
+    /**
+     * A response object OpenAPI accepts: a description, or (as a component)
+     * only a reference to another one.
+     *
+     * @param  array<string, mixed>  $response
+     */
+    private static function assertResponseObject(array $response, string $owner): void
+    {
+        $reference = array_keys($response) === ['$ref'] && is_string($response['$ref']);
+        if (! $reference && ! is_string($response['description'] ?? null)) {
+            throw new LogicException("{$owner} declares a response without a description.");
+        }
+        foreach (is_array($response['headers'] ?? null) ? $response['headers'] : [] as $name => $header) {
+            if (is_array($header) && ! array_key_exists('$ref', $header) && array_key_exists('schema', $header) === array_key_exists('content', $header)) {
+                throw new LogicException("{$owner} declares header [{$name}] without exactly one of a schema or a content map.");
+            }
+        }
+    }
+
+    /**
+     * The input with any reference resolved, to read its property definitions.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function resolvedInput(Operation $operation): ?array
+    {
+        if ($operation->input instanceof SchemaRef) {
+            return $operation->input->resolve($this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.'));
+        }
+
+        return $operation->input === null ? null : self::objectMaps($operation->input);
+    }
+
+    /**
+     * Carries the schemas a declared fragment references into the document,
+     * and refuses a reference the document could not resolve.
+     */
+    private function referenceComponentsIn(mixed $node, string $owner): void
+    {
+        if (! is_array($node)) {
+            return;
+        }
+        foreach ($node as $key => $value) {
+            if (in_array($key, ['example', 'examples', 'default', 'enum', 'const'], true) || str_starts_with((string) $key, 'x-')) {
+                // Literal payload or extension data: a "$ref" there is an ordinary field.
+                continue;
+            }
+            if ($key === '$ref' && is_string($value)) {
+                // The component is the pointer's first segment below its
+                // section; a reference may point further into it.
+                $segments = explode('/', $value);
+                $section = $segments[0] === '#' && ($segments[1] ?? null) === 'components' ? ($segments[2] ?? null) : null;
+                $name = str_replace(['~1', '~0'], ['/', '~'], $segments[3] ?? '');
+                if ($section === 'schemas' && $name !== '') {
+                    if ($this->catalog === null || ! in_array($name, $this->catalog->componentIds(), true)) {
+                        throw new LogicException("{$owner} references schema [{$name}], which no SchemaCatalog provides.");
+                    }
+                    $target = $this->catalog->componentClosure($name)[$name];
+                    foreach (array_slice($segments, 4) as $segment) {
+                        $segment = str_replace(['~1', '~0'], ['/', '~'], $segment);
+                        if (! is_array($target) || ! array_key_exists($segment, $target)) {
+                            throw new LogicException("{$owner} references [{$value}], which schema [{$name}] does not contain.");
+                        }
+                        $target = $target[$segment];
+                    }
+                    $this->components[$name] = true;
+                } elseif ($section === 'parameters' && $name !== '') {
+                    if (! isset($this->settings->parameters[$name])) {
+                        throw new LogicException("{$owner} references [{$value}], which OpenApiSettings::\$parameters does not define.");
+                    }
+                } elseif ($section === 'responses' && $name !== '') {
+                    if (! isset($this->settings->responses[$name])) {
+                        throw new LogicException("{$owner} references [{$value}], which OpenApiSettings::\$responses does not define.");
+                    }
+                } else {
+                    throw new LogicException("{$owner} references [{$value}], which is not a component of this document.");
+                }
+            } else {
+                $this->referenceComponentsIn($value, $owner);
+            }
+        }
     }
 
     /**
@@ -214,10 +461,21 @@ final class OpenApiDocumentBuilder
         return self::diff($shipped, $generated, '');
     }
 
+    /**
+     * The document as `write()` saves it, so a checked copy can be compared
+     * byte for byte.
+     *
+     * @param  array<string, mixed>  $document
+     */
+    public static function encode(array $document): string
+    {
+        return json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n";
+    }
+
     /** @param  array<string, mixed>  $document */
     public static function write(array $document, string $path): void
     {
-        $json = json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n";
+        $json = self::encode($document);
         if (@file_put_contents($path, $json) !== strlen($json)) {
             throw new RuntimeException("The OpenAPI document could not be written to {$path}.");
         }
@@ -266,7 +524,11 @@ final class OpenApiDocumentBuilder
     {
         $schemes = [];
         if ($this->settings->apiTokens) {
-            $schemes['apiToken'] = ['type' => 'http', 'scheme' => 'bearer', 'description' => $this->settings->apiTokenDescription];
+            $schemes['apiToken'] = ['type' => 'http', 'scheme' => 'bearer'];
+            if ($this->settings->apiTokenBearerFormat !== null) {
+                $schemes['apiToken']['bearerFormat'] = $this->settings->apiTokenBearerFormat;
+            }
+            $schemes['apiToken']['description'] = $this->settings->apiTokenDescription;
         }
         if ($this->settings->oauth()) {
             // Every scope an operation can require is one a client must be able
@@ -280,15 +542,19 @@ final class OpenApiDocumentBuilder
             foreach ($this->settings->connectionScopes as $scope) {
                 $scopes[$scope] ??= $scope;
             }
-            $schemes['oauth2'] = [
-                'type' => 'oauth2',
-                'flows' => ['authorizationCode' => [
-                    'authorizationUrl' => (string) $this->settings->authorizationUrl,
-                    'tokenUrl' => (string) $this->settings->tokenUrl,
-                    'refreshUrl' => (string) $this->settings->tokenUrl,
-                    'scopes' => $scopes === [] ? new stdClass : $scopes,
-                ]],
+            $flow = [
+                'authorizationUrl' => (string) $this->settings->authorizationUrl,
+                'tokenUrl' => (string) $this->settings->tokenUrl,
             ];
+            if ($this->settings->refreshUrl !== false) {
+                $flow['refreshUrl'] = $this->settings->refreshUrl ?? (string) $this->settings->tokenUrl;
+            }
+            $flow['scopes'] = $scopes === [] ? new stdClass : $scopes;
+            $schemes['oauth2'] = ['type' => 'oauth2'];
+            if ($this->settings->oauthDescription !== null) {
+                $schemes['oauth2']['description'] = $this->settings->oauthDescription;
+            }
+            $schemes['oauth2']['flows'] = ['authorizationCode' => $flow];
         }
 
         return $schemes;
@@ -318,10 +584,37 @@ final class OpenApiDocumentBuilder
         return ['$ref' => '#/components/schemas/'.$component];
     }
 
+    /**
+     * A binding's own schema: an inline one must reference only what the
+     * document carries, and carries what it references.
+     *
+     * @param  array<string, mixed>|SchemaRef  $schema
+     * @return array<string, mixed>
+     */
+    private function declaredSchema(array|SchemaRef $schema, string $owner): array
+    {
+        if (is_array($schema)) {
+            $this->referenceComponentsIn($schema, $owner);
+        }
+
+        return (array) $this->schema($schema);
+    }
+
     /** @return array<string, mixed> */
     private function documentComponents(): array
     {
         $components = ['securitySchemes' => $this->securitySchemes() ?: new stdClass];
+        foreach (['parameters' => $this->settings->parameters, 'responses' => $this->settings->responses] as $section => $declared) {
+            if ($declared !== []) {
+                foreach ($declared as $name => $fragment) {
+                    $section === 'parameters'
+                        ? self::assertParameterObject($fragment, "OpenApiSettings::\$parameters[{$name}]")
+                        : self::assertResponseObject($fragment, "OpenApiSettings::\$responses[{$name}]");
+                }
+                $this->referenceComponentsIn($declared, "OpenApiSettings::\${$section}");
+                $components[$section] = array_map(self::fragmentMaps(...), $declared);
+            }
+        }
         $schemas = [];
         foreach (array_keys($this->components) as $component) {
             $schemas += $this->catalog?->componentClosure($component) ?? [];
@@ -332,6 +625,27 @@ final class OpenApiDocumentBuilder
         }
 
         return $components;
+    }
+
+    /**
+     * A declared parameter, response or header as written, with only its
+     * schemas normalized: an example's own `"properties": []` stays an array.
+     *
+     * @param  array<array-key, mixed>  $fragment
+     * @return array<array-key, mixed>
+     */
+    private static function fragmentMaps(array $fragment): array
+    {
+        if (is_array($fragment['schema'] ?? null)) {
+            $fragment['schema'] = self::objectMaps($fragment['schema']);
+        }
+        foreach (['content', 'headers'] as $map) {
+            if (is_array($fragment[$map] ?? null)) {
+                $fragment[$map] = array_map(static fn (mixed $entry): mixed => is_array($entry) ? self::fragmentMaps($entry) : $entry, $fragment[$map]);
+            }
+        }
+
+        return $fragment;
     }
 
     /**

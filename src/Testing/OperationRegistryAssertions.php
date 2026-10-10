@@ -146,6 +146,26 @@ trait OperationRegistryAssertions
         }
     }
 
+    /**
+     * The checked OpenAPI document is exactly what the registry generates, so
+     * the served document and the reviewed file cannot drift apart. Rewrite
+     * it with UPDATE_OPERATION_SNAPSHOTS=1 and review the diff.
+     *
+     * @param  array<string, mixed>  $generated  e.g. `$builder->full()` with the checked file's installation URLs
+     */
+    public static function assertOpenApiDocumentMatches(array $generated, string $path): void
+    {
+        $encoded = OpenApiDocumentBuilder::encode($generated);
+        if (getenv('UPDATE_OPERATION_SNAPSHOTS') === '1') {
+            OpenApiDocumentBuilder::write($generated, $path);
+            Assert::markTestSkipped("OpenAPI document {$path} rewritten; review the diff.");
+        }
+        Assert::assertFileExists($path, 'Create the document with UPDATE_OPERATION_SNAPSHOTS=1.');
+        $differences = OpenApiDocumentBuilder::differences($generated, $path);
+        Assert::assertSame([], $differences, "The generated OpenAPI document differs from {$path}:\n".implode("\n", array_slice($differences, 0, 20)));
+        Assert::assertSame((string) file_get_contents($path), $encoded, "{$path} matches the generated document in content but not byte for byte (key order or formatting).");
+    }
+
     private static function restOperation(OperationRegistry $registry, string $id): ?Operation
     {
         $operation = $registry->find($id);

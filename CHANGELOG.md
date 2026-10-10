@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1 - Unreleased
+
+Lets a spec-first application reproduce a well-formed hand-written OpenAPI document (#23). Every option is opt-in; a document generated with the defaults is byte-identical to 0.4.0.
+
+- **`RestBinding`** gains documentation-only fields:
+  - `summary` and `description`, each a string or `false` to omit;
+  - `parameters`, an exact, ordered list of component names and inline parameter objects;
+  - `requestSchema` and `responseSchema`, for a REST body that differs from the MCP input or output. A declared request body is how a DELETE documents one, and `requestSchema: false` documents none;
+  - `responseDescriptions` per success status, and `responses` per status (a component name or a response object);
+  - `requestBodyRequired`.
+- **`OpenApiSettings`** gains:
+  - `parameters` and `responses`, emitted under `components`;
+  - `sharedResponses`, added to every operation;
+  - `summaries` and `agentExtensions` switches;
+  - `apiTokenBearerFormat`, `oauthDescription` and `refreshUrl`.
+- Declarations the document could not honour are refused: an uncovered or optional path parameter, an undocumented idempotency header, an unknown component, a reference outside the document, or a body on a GET.
+- **`OpenApiDocumentBuilder::encode()`** returns the bytes `write()` saves, and **`OperationRegistryAssertions::assertOpenApiDocumentMatches()`** pins a checked copy to the generated document.
+
 ## 0.4.0 - 2026-10-09
 
 - **`OpenApiDocumentBuilder` and `OpenApiSettings`** generate the REST contract from the registry. The document includes:
