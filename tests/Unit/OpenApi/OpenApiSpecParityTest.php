@@ -173,6 +173,20 @@ final class OpenApiSpecParityTest extends TestCase
         self::assertSame(['$ref' => 'not a pointer'], $document['paths']['/things']['get']['responses'][200]['content']['application/json']['example']);
     }
 
+    public function test_only_schemas_inside_declared_fragments_are_normalized(): void
+    {
+        $response = ['description' => 'A thing', 'content' => ['application/json' => [
+            'schema' => ['type' => 'object', 'properties' => []],
+            'example' => ['properties' => []],
+        ]], 'headers' => ['X-Page' => ['schema' => ['type' => 'object', 'properties' => []]]]];
+        $operation = self::builder(operations: [Fixtures::read('things.list', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things', responses: [200 => $response])])])->full()['paths']['/things']['get'];
+
+        $json = $operation['responses'][200]['content']['application/json'];
+        self::assertEquals(new \stdClass, $json['schema']['properties']);
+        self::assertSame(['properties' => []], $json['example'], 'Example data is emitted as written');
+        self::assertEquals(new \stdClass, $operation['responses'][200]['headers']['X-Page']['schema']['properties']);
+    }
+
     public function test_a_get_cannot_declare_a_body(): void
     {
         $this->expectException(LogicException::class);

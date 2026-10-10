@@ -260,7 +260,7 @@ final class OpenApiDocumentBuilder
         }
         $this->referenceComponentsIn($response, "Operation [{$operation->id}]");
 
-        return self::objectMaps($response);
+        return self::fragmentMaps($response);
     }
 
     private static function status(Operation $operation, int|string $status): string
@@ -294,7 +294,7 @@ final class OpenApiDocumentBuilder
             } elseif (is_array($entry) && ! array_key_exists('$ref', $entry)) {
                 $resolved = $entry;
                 $this->referenceComponentsIn($entry, "Operation [{$operation->id}]");
-                $parameters[] = self::objectMaps($entry);
+                $parameters[] = self::fragmentMaps($entry);
             } else {
                 throw new LogicException("Operation [{$operation->id}] declares a parameter that is neither a component name nor an inline parameter object.");
             }
@@ -554,7 +554,7 @@ final class OpenApiDocumentBuilder
         foreach (['parameters' => $this->settings->parameters, 'responses' => $this->settings->responses] as $section => $declared) {
             if ($declared !== []) {
                 $this->referenceComponentsIn($declared, "OpenApiSettings::\${$section}");
-                $components[$section] = self::objectMaps($declared);
+                $components[$section] = array_map(self::fragmentMaps(...), $declared);
             }
         }
         $schemas = [];
@@ -567,6 +567,27 @@ final class OpenApiDocumentBuilder
         }
 
         return $components;
+    }
+
+    /**
+     * A declared parameter, response or header as written, with only its
+     * schemas normalized: an example's own `"properties": []` stays an array.
+     *
+     * @param  array<array-key, mixed>  $fragment
+     * @return array<array-key, mixed>
+     */
+    private static function fragmentMaps(array $fragment): array
+    {
+        if (is_array($fragment['schema'] ?? null)) {
+            $fragment['schema'] = self::objectMaps($fragment['schema']);
+        }
+        foreach (['content', 'headers'] as $map) {
+            if (is_array($fragment[$map] ?? null)) {
+                $fragment[$map] = array_map(static fn (mixed $entry): mixed => is_array($entry) ? self::fragmentMaps($entry) : $entry, $fragment[$map]);
+            }
+        }
+
+        return $fragment;
     }
 
     /**
