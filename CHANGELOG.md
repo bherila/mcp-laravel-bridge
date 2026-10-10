@@ -1,12 +1,13 @@
 # Changelog
 
-## 0.4.2 - Unreleased
+## 0.4.2 - 2026-10-10
 
 Codec plug-in for extra media types (#22). Opt-in: with no codec bound, routes and documents are byte-identical to 0.4.1.
 
 - **`PayloadCodec`** (`mediaType()`, `encode()`, `decode()`) and **`PayloadCodecs`**, a collection that negotiates an `Accept` header. JSON stays the default and wins ties. The bridge ships no codec.
 - **`NegotiatePayload`** is added by `Route::operation()` after the gate when a non-empty `PayloadCodecs` is bound. It decodes request bodies in a codec's type where the operation takes JSON or lists that type, and refuses others with 415 (400 when the body does not decode). It re-encodes JSON responses the client prefers in a codec's type, and adds `Vary: Accept`.
 - **`OpenApiDocumentBuilder`** takes an optional `PayloadCodecs` and offers each codec's type beside JSON bodies. `extraMediaTypes` keeps working, and `mediaTypesWithoutCodec()` lists declared types nothing serves.
+- Declared JSON responses offer the codec types too. A response a codec cannot represent exactly (an integer beyond PHP's range, or an empty or numerically keyed object) stays JSON. Downstream errors render as JSON so they are re-encoded, and validators of the JSON bytes are dropped.
 - **`OperationRegistryAssertions::assertMediaTypesHaveCodecs()`** fails on a declared media type with no codec.
 
 ## 0.4.1 - 2026-10-10
