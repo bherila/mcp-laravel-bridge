@@ -160,6 +160,15 @@ final class NegotiatePayloadTest extends TestCase
             ->assertStatus(415);
     }
 
+    public function test_a_codec_defect_is_a_server_error_not_a_bad_request(): void
+    {
+        $this->withCodecs();
+        $this->withoutExceptionHandling();
+
+        $this->expectException(\RuntimeException::class);
+        $this->call('POST', '/api/things', [], [], [], ['CONTENT_TYPE' => 'application/x-test', 'HTTP_ACCEPT' => 'application/json', 'HTTP_X_TEST_SCOPES' => 'things:write'], "TEST\nEXPLODE");
+    }
+
     public function test_the_gate_answers_before_any_body_is_decoded(): void
     {
         $this->withCodecs();

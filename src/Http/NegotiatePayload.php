@@ -9,6 +9,7 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as IlluminateResponse;
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\InputBag;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -41,7 +42,9 @@ final class NegotiatePayload
             }
             try {
                 $data = $codec->decode($request->getContent());
-            } catch (Throwable) {
+            } catch (InvalidArgumentException) {
+                // The codec's contract for a body it cannot read; anything
+                // else it throws is a server fault and surfaces as one.
                 return self::error(400, "The request body is not valid {$codec->mediaType()}.");
             }
             if (! is_array($data)) {

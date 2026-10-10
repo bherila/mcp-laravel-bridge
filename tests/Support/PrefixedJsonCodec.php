@@ -26,6 +26,13 @@ final class PrefixedJsonCodec implements PayloadCodec
             throw new InvalidArgumentException('Not a test payload.');
         }
 
-        return json_decode(substr($body, 5), true, 512, JSON_THROW_ON_ERROR);
+        if (str_contains($body, 'EXPLODE')) {
+            throw new \RuntimeException('A defect in the codec, not in the body.');
+        }
+        try {
+            return json_decode(substr($body, 5), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $invalid) {
+            throw new InvalidArgumentException('Not a test payload.', 0, $invalid);
+        }
     }
 }
