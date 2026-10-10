@@ -133,7 +133,9 @@ final class OpenApiDocumentBuilder
             // A declared body replaces the input; otherwise the input becomes
             // query parameters or the body, as it always has.
             $input = $body === null && ($queryMethod || ! $noBody) ? $this->schema($operation->input) : null;
-            $resolved = $this->resolvedInput($operation);
+            // Resolved only to type path or query parameters: an input the
+            // binding replaces needs no catalog.
+            $resolved = $pathParameters !== [] || ($input !== null && $queryMethod) ? $this->resolvedInput($operation) : null;
             $declared = is_array($resolved['properties'] ?? null) ? $resolved['properties'] : [];
             $parameters = array_map(static function (string $name) use ($declared): array {
                 // The input's own definition of the parameter, when it has one.

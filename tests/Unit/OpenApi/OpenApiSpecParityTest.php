@@ -205,6 +205,18 @@ final class OpenApiSpecParityTest extends TestCase
         self::assertSame(['type' => 'string'], $derived['parameters'][0]['schema']);
     }
 
+    public function test_a_replaced_input_needs_no_catalog(): void
+    {
+        $registry = (new OperationRegistry)->register(Fixtures::write('things.create', new Requirement(['things:write']), [
+            'rest' => new RestBinding('POST', '/things', requestSchema: ['type' => 'object']),
+            'input' => SchemaRef::requestOf('things.create'),
+            'output' => ['type' => 'object'],
+        ]));
+        $document = (new OpenApiDocumentBuilder($registry, new OpenApiSettings(title: 'T', version: '1', serverUrl: 'https://things.example.test')))->full();
+
+        self::assertSame(['type' => 'object'], $document['paths']['/things']['post']['requestBody']['content']['application/json']['schema']);
+    }
+
     public function test_a_get_cannot_declare_a_body(): void
     {
         $this->expectException(LogicException::class);
