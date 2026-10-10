@@ -21,7 +21,7 @@ final readonly class PayloadCodecs
         $byType = [];
         foreach ($codecs as $codec) {
             $type = self::normalize($codec->mediaType());
-            if ($type === self::JSON || preg_match('~^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$~', $type) !== 1) {
+            if ($type === self::JSON || preg_match("~^[a-z0-9!#$%&'*+.^_`|\\~-]+/[a-z0-9!#$%&'*+.^_`|\\~-]+$~", $type) !== 1 || in_array('*', explode('/', $type), true)) {
                 throw new InvalidArgumentException("A payload codec cannot serve [{$codec->mediaType()}]: it must be a concrete media type other than JSON.");
             }
             if (isset($byType[$type])) {

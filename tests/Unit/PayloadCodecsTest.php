@@ -42,6 +42,7 @@ final class PayloadCodecsTest extends TestCase
         $codecs = new PayloadCodecs(new PrefixedJsonCodec);
 
         self::assertSame(['application/x-test'], $codecs->mediaTypes());
+        self::assertSame(['application/vnd.example~compact', "text/x-a!b#c\$d%e&f'g^h_i`j|k"], (new PayloadCodecs(new PrefixedJsonCodec('application/vnd.example~compact'), new PrefixedJsonCodec("text/x-a!b#c\$d%e&f'g^h_i`j|k")))->mediaTypes(), 'Every token character');
         self::assertNotNull($codecs->forContentType('application/x-test; charset=utf-8'));
         self::assertNull($codecs->forContentType('application/json'));
         self::assertNull($codecs->forContentType(null));
@@ -54,6 +55,8 @@ final class PayloadCodecsTest extends TestCase
     {
         yield 'JSON itself' => [['application/json']];
         yield 'a range' => [['application/*']];
+        yield 'any type' => [['*/*']];
+        yield 'a parameter-less space' => [['application/x test']];
         yield 'not a media type' => [['toon']];
         yield 'twice' => [['application/x-test', 'Application/X-Test']];
     }
