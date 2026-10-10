@@ -53,6 +53,31 @@ final class OpenApiDocumentBuilder
     }
 
     /**
+     * A declared response with JSON content is re-encoded by the codecs like
+     * a generated one, so it offers their types too, with the same schema.
+     *
+     * @param  array<string, mixed>  $response
+     * @return array<string, mixed>
+     */
+    private function withCodecTypes(array $response): array
+    {
+        if ($this->codecs === null || ! is_array($response['content'] ?? null)) {
+            return $response;
+        }
+        foreach ($response['content'] as $type => $media) {
+            if (PayloadCodecs::isJson((string) $type)) {
+                foreach ($this->codecs->mediaTypes() as $codecType) {
+                    $response['content'][$codecType] ??= $media;
+                }
+
+                break;
+            }
+        }
+
+        return $response;
+    }
+
+    /**
      * The media types a body is offered in: its own, the declared extras, and
      * each codec's type where the body is JSON.
      *
@@ -299,7 +324,7 @@ final class OpenApiDocumentBuilder
         self::assertResponseObject($response, "Operation [{$operation->id}]");
         $this->referenceComponentsIn($response, "Operation [{$operation->id}]");
 
-        return self::fragmentMaps($response);
+        return $this->withCodecTypes(self::fragmentMaps($response));
     }
 
     private static function status(Operation $operation, int|string $status): string
@@ -640,6 +665,9 @@ final class OpenApiDocumentBuilder
                 }
                 $this->referenceComponentsIn($declared, "OpenApiSettings::\${$section}");
                 $components[$section] = array_map(self::fragmentMaps(...), $declared);
+                if ($section === 'responses') {
+                    $components[$section] = array_map($this->withCodecTypes(...), $components[$section]);
+                }
             }
         }
         $schemas = [];

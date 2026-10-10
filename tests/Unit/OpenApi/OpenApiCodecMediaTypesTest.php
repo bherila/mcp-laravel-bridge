@@ -45,6 +45,23 @@ final class OpenApiCodecMediaTypesTest extends TestCase
         self::assertSame(['application/merge-patch+json', 'application/x-test'], array_keys($paths['/things/{thing}']['patch']['requestBody']['content']), 'A +json body is JSON');
     }
 
+    public function test_declared_json_responses_offer_codec_types_too(): void
+    {
+        $json = ['description' => 'A thing', 'content' => ['application/json' => ['schema' => ['type' => 'object']]]];
+        $registry = (new OperationRegistry)->register(
+            Fixtures::read('things.show', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing}', responses: [200 => $json, 404 => 'Missing', 410 => ['description' => 'Gone']])]),
+            Fixtures::read('things.file', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing}/file', responses: [200 => ['description' => 'File', 'content' => ['application/pdf' => ['schema' => ['type' => 'string']]]]])]),
+        );
+        $settings = new OpenApiSettings(title: 'Things', version: '1', serverUrl: 'https://things.example.test/api', responses: ['Missing' => $json]);
+        $document = (new OpenApiDocumentBuilder($registry, $settings, codecs: new PayloadCodecs(new PrefixedJsonCodec)))->full();
+
+        self::assertSame(['application/json', 'application/x-test'], array_keys($document['paths']['/things/{thing}']['get']['responses'][200]['content']));
+        self::assertSame(['application/json', 'application/x-test'], array_keys($document['components']['responses']['Missing']['content']));
+        self::assertArrayNotHasKey('content', $document['paths']['/things/{thing}']['get']['responses'][410]);
+        self::assertSame(['application/pdf'], array_keys($document['paths']['/things/{thing}/file']['get']['responses'][200]['content']), 'A file is not re-encoded');
+        self::assertSame(['application/json'], array_keys((new OpenApiDocumentBuilder($registry, $settings))->full()['components']['responses']['Missing']['content']), 'No codecs, no change');
+    }
+
     public function test_declared_extra_types_still_work_and_are_not_repeated(): void
     {
         $builder = new OpenApiDocumentBuilder(self::registry(), self::settings(['application/x-test', 'application/x-legacy']), codecs: new PayloadCodecs(new PrefixedJsonCodec));
