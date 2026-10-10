@@ -311,9 +311,6 @@ final class OpenApiDocumentBuilder
             }
             $seen[$key] = $resolved;
             if ($in === 'path') {
-                if (($resolved['required'] ?? null) !== true) {
-                    throw new LogicException("Operation [{$operation->id}] declares path parameter [{$name}] as optional; OpenAPI path parameters are always required.");
-                }
                 $inPath[] = $name;
             }
         }
@@ -346,6 +343,9 @@ final class OpenApiDocumentBuilder
         }
         if (array_key_exists('schema', $parameter) === array_key_exists('content', $parameter)) {
             throw new LogicException("{$owner} declares parameter [{$parameter['name']}] without exactly one of a schema or a content map.");
+        }
+        if ($parameter['in'] === 'path' && ($parameter['required'] ?? null) !== true) {
+            throw new LogicException("{$owner} declares path parameter [{$parameter['name']}] as optional; OpenAPI path parameters are always required.");
         }
     }
 

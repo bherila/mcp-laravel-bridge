@@ -316,6 +316,13 @@ final class OpenApiSpecParityTest extends TestCase
         self::builder(['parameters' => [...self::settings()->parameters, 'Cursor' => ['name' => 'cursor', 'in' => 'query']]])->full();
     }
 
+    public function test_an_unused_path_parameter_component_must_still_be_required(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('OpenApiSettings::$parameters[OtherId] declares path parameter [other] as optional');
+        self::builder(['parameters' => [...self::settings()->parameters, 'OtherId' => ['name' => 'other', 'in' => 'path', 'schema' => ['type' => 'string']]]])->full();
+    }
+
     public function test_a_response_component_must_be_a_response_object(): void
     {
         $this->expectException(LogicException::class);
