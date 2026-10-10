@@ -298,11 +298,9 @@ final class OpenApiDocumentBuilder
             } else {
                 throw new LogicException("Operation [{$operation->id}] declares a parameter that is neither a component name nor an inline parameter object.");
             }
-            $name = $resolved['name'] ?? null;
-            $in = $resolved['in'] ?? null;
-            if (! is_string($name) || ! in_array($in, ['path', 'query', 'header', 'cookie'], true)) {
-                throw new LogicException("Operation [{$operation->id}] declares a parameter without a name and a location.");
-            }
+            self::assertParameterObject($resolved, "Operation [{$operation->id}]");
+            $name = (string) $resolved['name'];
+            $in = (string) $resolved['in'];
             // Header names are case-insensitive; the rest are exact.
             $key = $in.':'.($in === 'header' ? strtolower($name) : $name);
             if (isset($seen[$key])) {
@@ -330,6 +328,22 @@ final class OpenApiDocumentBuilder
         }
 
         return $parameters;
+    }
+
+    /**
+     * A parameter object OpenAPI accepts: a name, a location, and exactly one
+     * of `schema` or `content`.
+     *
+     * @param  array<string, mixed>  $parameter
+     */
+    private static function assertParameterObject(array $parameter, string $owner): void
+    {
+        if (! is_string($parameter['name'] ?? null) || ! in_array($parameter['in'] ?? null, ['path', 'query', 'header', 'cookie'], true)) {
+            throw new LogicException("{$owner} declares a parameter without a name and a location.");
+        }
+        if (array_key_exists('schema', $parameter) === array_key_exists('content', $parameter)) {
+            throw new LogicException("{$owner} declares parameter [{$parameter['name']}] without exactly one of a schema or a content map.");
+        }
     }
 
     /**
@@ -553,6 +567,9 @@ final class OpenApiDocumentBuilder
         $components = ['securitySchemes' => $this->securitySchemes() ?: new stdClass];
         foreach (['parameters' => $this->settings->parameters, 'responses' => $this->settings->responses] as $section => $declared) {
             if ($declared !== []) {
+                if ($section === 'parameters') {
+                    array_walk($declared, static fn (array $parameter, string $name) => self::assertParameterObject($parameter, "OpenApiSettings::\$parameters[{$name}]"));
+                }
                 $this->referenceComponentsIn($declared, "OpenApiSettings::\${$section}");
                 $components[$section] = array_map(self::fragmentMaps(...), $declared);
             }

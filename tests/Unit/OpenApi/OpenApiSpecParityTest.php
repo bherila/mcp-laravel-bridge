@@ -262,7 +262,9 @@ final class OpenApiSpecParityTest extends TestCase
         yield 'missing placeholder' => [new RestBinding('GET', '/things/{thing}', parameters: ['Limit']), 'its path /things/{thing} has [thing]'];
         yield 'stray path parameter' => [new RestBinding('GET', '/things', parameters: ['ThingId']), 'declares path parameters [thing]'];
         yield 'optional path parameter' => [new RestBinding('GET', '/things/{thing}', parameters: [['name' => 'thing', 'in' => 'path', 'schema' => ['type' => 'string']]]), 'as optional'];
-        yield 'duplicate' => [new RestBinding('GET', '/things', parameters: ['Limit', ['name' => 'limit', 'in' => 'query']]), 'twice'];
+        yield 'duplicate' => [new RestBinding('GET', '/things', parameters: ['Limit', ['name' => 'limit', 'in' => 'query', 'schema' => ['type' => 'integer']]]), 'twice'];
+        yield 'neither schema nor content' => [new RestBinding('GET', '/things', parameters: [['name' => 'q', 'in' => 'query']]), 'exactly one of a schema'];
+        yield 'both schema and content' => [new RestBinding('GET', '/things', parameters: [['name' => 'q', 'in' => 'query', 'schema' => [], 'content' => []]]), 'exactly one of a schema'];
         yield 'unknown parameter component' => [new RestBinding('GET', '/things', parameters: ['Cursor']), 'names parameter [Cursor]'];
         yield 'inline $ref' => [new RestBinding('GET', '/things', parameters: [['$ref' => '#/components/parameters/Limit']]), 'neither a component name'];
         yield 'nameless' => [new RestBinding('GET', '/things', parameters: [['in' => 'query']]), 'without a name'];
@@ -273,7 +275,7 @@ final class OpenApiSpecParityTest extends TestCase
         yield 'invalid status' => [new RestBinding('GET', '/things', responses: ['600' => 'Error']), 'status [600]'];
         yield 'description of an undeclared status' => [new RestBinding('GET', '/things', responseDescriptions: [201 => 'Created']), 'status [201]'];
         yield 'undocumented idempotency header' => [new RestBinding('POST', '/things', parameters: []), 'do not document', new WriteSafety(IdempotencyKey::HeaderAndArgument)];
-        yield 'required header documented optional' => [new RestBinding('POST', '/things', parameters: [['name' => 'idempotency-key', 'in' => 'header', 'required' => false]]), 'mark optional', new WriteSafety(IdempotencyKey::Header)];
+        yield 'required header documented optional' => [new RestBinding('POST', '/things', parameters: [['name' => 'idempotency-key', 'in' => 'header', 'required' => false, 'schema' => ['type' => 'string']]]), 'mark optional', new WriteSafety(IdempotencyKey::Header)];
     }
 
     #[DataProvider('invalidBindings')]
@@ -286,6 +288,13 @@ final class OpenApiSpecParityTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage($message);
         self::builder(operations: [$operation])->full();
+    }
+
+    public function test_a_parameter_component_must_be_a_parameter_object(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('OpenApiSettings::$parameters[Cursor] declares parameter [cursor] without exactly one of a schema');
+        self::builder(['parameters' => [...self::settings()->parameters, 'Cursor' => ['name' => 'cursor', 'in' => 'query']]])->full();
     }
 
     public function test_a_settings_component_must_resolve(): void
