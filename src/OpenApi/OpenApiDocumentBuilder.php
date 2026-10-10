@@ -119,7 +119,7 @@ final class OpenApiDocumentBuilder
                 // HTTP gives a GET or HEAD body no meaning; a client would drop it.
                 throw new LogicException("Operation [{$operation->id}] declares a request body on {$method}, which has no defined meaning.");
             }
-            $body = $this->schema($rest->requestSchema);
+            $body = $this->declaredSchema($rest->requestSchema, "Operation [{$operation->id}]");
         }
 
         if ($rest->parameters !== null) {
@@ -220,7 +220,7 @@ final class OpenApiDocumentBuilder
         if ($stray !== []) {
             throw new LogicException("Operation [{$operation->id}] describes status [".implode(', ', $stray).'], which is not one of its success statuses.');
         }
-        $output = $rest->responseSchema !== null ? $this->schema($rest->responseSchema) : $this->schema($operation->output);
+        $output = $rest->responseSchema !== null ? $this->declaredSchema($rest->responseSchema, "Operation [{$operation->id}]") : $this->schema($operation->output);
         $responses = [];
         foreach ($rest->successStatuses as $status) {
             $response = ['description' => $rest->responseDescriptions[$status] ?? ($status === 201 ? 'Created' : 'Success')];
@@ -521,6 +521,22 @@ final class OpenApiDocumentBuilder
         $this->components[$component] = true;
 
         return ['$ref' => '#/components/schemas/'.$component];
+    }
+
+    /**
+     * A binding's own schema: an inline one must reference only what the
+     * document carries, and carries what it references.
+     *
+     * @param  array<string, mixed>|SchemaRef  $schema
+     * @return array<string, mixed>
+     */
+    private function declaredSchema(array|SchemaRef $schema, string $owner): array
+    {
+        if (is_array($schema)) {
+            $this->referenceComponentsIn($schema, $owner);
+        }
+
+        return (array) $this->schema($schema);
     }
 
     /** @return array<string, mixed> */

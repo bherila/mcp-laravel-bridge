@@ -137,6 +137,24 @@ final class OpenApiSpecParityTest extends TestCase
         self::assertSame(['type' => 'object', 'properties' => ['name' => ['type' => 'string']]], $create['requestBody']['content']['application/json']['schema'], 'With declared parameters, a POST input is still the body');
     }
 
+    public function test_inline_request_and_response_schemas_carry_what_they_reference(): void
+    {
+        $document = self::builder(['parameters' => [], 'responses' => [], 'sharedResponses' => []], [Fixtures::write('things.create', new Requirement(['things:write']), [
+            'rest' => new RestBinding('POST', '/things',
+                requestSchema: ['type' => 'object', 'properties' => ['status' => ['$ref' => '#/components/schemas/ThingStatus']]],
+                responseSchema: ['oneOf' => [['$ref' => '#/components/schemas/Deletion'], ['type' => 'null']]],
+            ),
+        ])])->full();
+
+        self::assertSame(['Deletion', 'ThingStatus'], array_keys($document['components']['schemas']));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('schema [Nope]');
+        self::builder(operations: [Fixtures::write('things.create', new Requirement(['things:write']), [
+            'rest' => new RestBinding('POST', '/things', parameters: ['IdempotencyKey'], responseSchema: ['$ref' => '#/components/schemas/Nope']),
+        ])])->full();
+    }
+
     public function test_a_get_cannot_declare_a_body(): void
     {
         $this->expectException(LogicException::class);
