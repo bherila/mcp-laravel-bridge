@@ -161,6 +161,18 @@ final class OpenApiSpecParityTest extends TestCase
         ])])->full();
     }
 
+    public function test_a_ref_field_inside_example_data_is_not_a_reference(): void
+    {
+        $response = ['description' => 'A thing', 'content' => ['application/json' => [
+            'schema' => ['type' => 'object', 'default' => ['$ref' => 'literal']],
+            'example' => ['$ref' => 'not a pointer'],
+            'examples' => ['one' => ['value' => ['$ref' => 'https://data.example.test/x']]],
+        ]]];
+        $document = self::builder(operations: [Fixtures::read('things.list', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things', responses: [200 => $response])])])->full();
+
+        self::assertSame(['$ref' => 'not a pointer'], $document['paths']['/things']['get']['responses'][200]['content']['application/json']['example']);
+    }
+
     public function test_a_get_cannot_declare_a_body(): void
     {
         $this->expectException(LogicException::class);

@@ -356,6 +356,10 @@ final class OpenApiDocumentBuilder
             return;
         }
         foreach ($node as $key => $value) {
+            if (in_array($key, ['example', 'examples', 'default', 'enum', 'const'], true)) {
+                // Literal payload data: a "$ref" there is an ordinary field.
+                continue;
+            }
             if ($key === '$ref' && is_string($value)) {
                 // The component is the pointer's first segment below its
                 // section; a reference may point further into it.
