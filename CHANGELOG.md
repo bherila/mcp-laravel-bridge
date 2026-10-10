@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.1 - Unreleased
+## 0.4.1 - 2026-10-10
 
 Lets a spec-first application reproduce a well-formed hand-written OpenAPI document (#23). Every option is opt-in; a document generated with the defaults is byte-identical to 0.4.0.
 
