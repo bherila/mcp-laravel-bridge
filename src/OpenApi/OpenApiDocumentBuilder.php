@@ -357,18 +357,22 @@ final class OpenApiDocumentBuilder
         }
         foreach ($node as $key => $value) {
             if ($key === '$ref' && is_string($value)) {
-                if (str_starts_with($value, '#/components/schemas/')) {
-                    $name = substr($value, strlen('#/components/schemas/'));
+                // The component is the pointer's first segment below its
+                // section; a reference may point further into it.
+                $segments = explode('/', $value);
+                $section = $segments[0] === '#' && ($segments[1] ?? null) === 'components' ? ($segments[2] ?? null) : null;
+                $name = str_replace(['~1', '~0'], ['/', '~'], $segments[3] ?? '');
+                if ($section === 'schemas' && $name !== '') {
                     if ($this->catalog === null || ! in_array($name, $this->catalog->componentIds(), true)) {
                         throw new LogicException("{$owner} references schema [{$name}], which no SchemaCatalog provides.");
                     }
                     $this->components[$name] = true;
-                } elseif (str_starts_with($value, '#/components/parameters/')) {
-                    if (! isset($this->settings->parameters[substr($value, strlen('#/components/parameters/'))])) {
+                } elseif ($section === 'parameters' && $name !== '') {
+                    if (! isset($this->settings->parameters[$name])) {
                         throw new LogicException("{$owner} references [{$value}], which OpenApiSettings::\$parameters does not define.");
                     }
-                } elseif (str_starts_with($value, '#/components/responses/')) {
-                    if (! isset($this->settings->responses[substr($value, strlen('#/components/responses/'))])) {
+                } elseif ($section === 'responses' && $name !== '') {
+                    if (! isset($this->settings->responses[$name])) {
                         throw new LogicException("{$owner} references [{$value}], which OpenApiSettings::\$responses does not define.");
                     }
                 } else {

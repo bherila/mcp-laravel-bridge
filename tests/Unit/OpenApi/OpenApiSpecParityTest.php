@@ -148,6 +148,12 @@ final class OpenApiSpecParityTest extends TestCase
 
         self::assertSame(['Deletion', 'ThingStatus'], array_keys($document['components']['schemas']));
 
+        $nested = self::builder(['parameters' => [], 'responses' => [], 'sharedResponses' => []], [Fixtures::read('things.list', new Requirement(['things:read']), [
+            'rest' => new RestBinding('GET', '/things', parameters: [['name' => 'id', 'in' => 'query', 'schema' => ['$ref' => '#/components/schemas/Thing/properties/id']]]),
+        ])])->full();
+        self::assertSame(['Thing', 'ThingStatus'], array_keys($nested['components']['schemas']), 'A reference into a component carries that component');
+        self::assertSame('#/components/schemas/Thing/properties/id', $nested['paths']['/things']['get']['parameters'][0]['schema']['$ref']);
+
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('schema [Nope]');
         self::builder(operations: [Fixtures::write('things.create', new Requirement(['things:write']), [
