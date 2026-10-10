@@ -3,6 +3,7 @@
 namespace Bherila\McpLaravelBridge\Http;
 
 use Bherila\McpLaravelBridge\Capabilities\OperationRegistry;
+use Bherila\McpLaravelBridge\Capabilities\RestBinding;
 use Closure;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +18,8 @@ use Throwable;
  * `Route::operation()` after the gate when a {@see PayloadCodecs} collection
  * is bound. A request body in a codec's media type is decoded into the JSON
  * input the controller already reads, where the operation takes a JSON body
- * or lists that type; any other is refused with 415. A JSON response is
+ * or lists that type; any other, including a body sent to an operation that
+ * documents none, is refused with 415. A JSON response is
  * re-encoded when the Accept header prefers a codec's type. JSON stays the
  * default, and every negotiated response varies on Accept.
  */
@@ -31,10 +33,10 @@ final class NegotiatePayload
         $codec = $codecs->forContentType($request->headers->get('Content-Type'));
         // Only a body is decoded: a bodiless request may still carry the header.
         if ($codec !== null && $request->getContent() !== '') {
-            $accepted = $this->container->make(OperationRegistry::class)->find($operationId)?->rest?->requestContentTypes ?? [];
-            $accepted = array_map(strtolower(...), $accepted);
+            $rest = $this->container->make(OperationRegistry::class)->find($operationId)?->rest;
+            $accepted = array_map(strtolower(...), $rest?->requestContentTypes ?? []);
             $takesJson = array_filter($accepted, PayloadCodecs::isJson(...)) !== [];
-            if (! $takesJson && ! in_array(strtolower($codec->mediaType()), $accepted, true)) {
+            if (! self::takesBody($rest) || (! $takesJson && ! in_array(strtolower($codec->mediaType()), $accepted, true))) {
                 return self::error(415, "This operation does not accept {$codec->mediaType()} request bodies.");
             }
             try {
@@ -86,6 +88,19 @@ final class NegotiatePayload
         }
 
         return $encoded;
+    }
+
+    /**
+     * Whether the operation documents a request body: a declared one, or by
+     * default any method but GET, HEAD and DELETE (whose input is the query).
+     */
+    private static function takesBody(?RestBinding $rest): bool
+    {
+        return match (true) {
+            $rest === null, $rest->requestSchema === false => false,
+            $rest->requestSchema !== null => true,
+            default => ! in_array(strtoupper($rest->method), ['GET', 'HEAD', 'DELETE'], true),
+        };
     }
 
     private static function isJson(Response $response): bool

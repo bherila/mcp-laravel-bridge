@@ -156,6 +156,8 @@ final class NegotiatePayloadTest extends TestCase
             ->assertStatus(400);
         $this->call('POST', '/api/things/upload', [], [], [], $server, "TEST\n{}")
             ->assertStatus(415);
+        $this->call('GET', '/api/things/7', [], [], [], [...$server, 'HTTP_X_TEST_SCOPES' => 'things:read'], "TEST\n{\"thing\":\"8\"}")
+            ->assertStatus(415);
     }
 
     public function test_the_gate_answers_before_any_body_is_decoded(): void
