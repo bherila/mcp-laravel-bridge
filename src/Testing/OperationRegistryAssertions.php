@@ -5,6 +5,8 @@ namespace Bherila\McpLaravelBridge\Testing;
 use Bherila\McpLaravelBridge\Capabilities\Operation;
 use Bherila\McpLaravelBridge\Capabilities\OperationRegistry;
 use Bherila\McpLaravelBridge\Capabilities\ScopeRule;
+use Bherila\McpLaravelBridge\Http\PayloadCodecs;
+use Bherila\McpLaravelBridge\OpenApi\OpenApiSettings;
 use Bherila\McpLaravelBridge\OpenApi\OpenApiDocumentBuilder;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Route as RouteFacade;
@@ -164,6 +166,38 @@ trait OperationRegistryAssertions
         $differences = OpenApiDocumentBuilder::differences($generated, $path);
         Assert::assertSame([], $differences, "The generated OpenAPI document differs from {$path}:\n".implode("\n", array_slice($differences, 0, 20)));
         Assert::assertSame((string) file_get_contents($path), $encoded, "{$path} matches the generated document in content but not byte for byte (key order or formatting).");
+    }
+
+    /**
+     * Every media type the contract declares beside the ones Laravel parses
+     * itself is served by a codec: the settings' extra types, and each REST
+     * binding's request types.
+     *
+     * @param  list<string>  $handledElsewhere  further types the application decodes itself (e.g. a raw upload)
+     */
+    public static function assertMediaTypesHaveCodecs(OperationRegistry $registry, OpenApiSettings $settings, ?PayloadCodecs $codecs, array $handledElsewhere = []): void
+    {
+        // Laravel parses these request bodies itself, but an extra media type
+        // is also offered for every JSON response, which only a codec writes.
+        $parsed = array_map(strtolower(...), ['multipart/form-data', 'application/x-www-form-urlencoded', ...$handledElsewhere]);
+        $served = $codecs?->mediaTypes() ?? [];
+        $missing = [];
+        foreach ($settings->extraMediaTypes as $type) {
+            $type = strtolower(trim($type));
+            if ($type !== PayloadCodecs::JSON && ! in_array($type, $served, true)) {
+                $missing[$type][] = 'OpenApiSettings::$extraMediaTypes';
+            }
+        }
+        foreach ($registry->all() as $operation) {
+            foreach ($operation->rest?->requestContentTypes ?? [] as $type) {
+                $type = strtolower(trim($type));
+                if (! PayloadCodecs::isJson($type) && ! in_array($type, $parsed, true) && ! in_array($type, $served, true)) {
+                    $missing[$type][] = "operation [{$operation->id}]";
+                }
+            }
+        }
+        $missing = array_map(static fn (string $type, array $where): string => "{$type} (".implode(', ', array_unique($where)).')', array_keys($missing), $missing);
+        Assert::assertSame([], $missing, 'Declared media types without a codec: '.implode('; ', $missing));
     }
 
     private static function restOperation(OperationRegistry $registry, string $id): ?Operation

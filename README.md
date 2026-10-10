@@ -319,6 +319,20 @@ new OpenApiSettings(...,
 - **References** in declared fragments must resolve: a schema through the `SchemaCatalog` (and it is carried into `components/schemas`), a parameter or response through the settings. External references are refused.
 - **Drift check:** `OperationRegistryAssertions::assertOpenApiDocumentMatches($builder->full(), $checkedPath)` fails when a checked copy differs from the generated document in content or bytes. `UPDATE_OPERATION_SNAPSHOTS=1` rewrites it.
 
+### Payload codecs (0.4.2)
+
+An application that also speaks an encoding other than JSON (for example a compact text format for language-model clients) implements `PayloadCodec` and binds the collection:
+
+```php
+$this->app->instance(PayloadCodecs::class, new PayloadCodecs(new ToonCodec)); // the bridge ships no codec
+```
+
+- **Routes:** with a non-empty collection bound, `Route::operation()` adds `NegotiatePayload` after the gate. A body in a codec's media type is decoded into the JSON input the controller already reads, where the operation takes a JSON (or `+json`) body or lists that type. Otherwise it is refused with 415, including a body sent to an operation that documents none; a body the codec rejects with `InvalidArgumentException` gets 400. A JSON response, errors included, is re-encoded when the `Accept` header ranks a codec's type above JSON; one with an integer beyond PHP's range stays JSON, and validators of the JSON bytes (`ETag`, digests) are dropped. JSON stays the default and wins ties, gate refusals stay JSON, and negotiated routes add `Vary: Accept`.
+- **Document:** `new OpenApiDocumentBuilder($registry, $settings, $catalog, $codecs)` offers each codec's type beside every JSON request and response body. `extraMediaTypes` still works; `mediaTypesWithoutCodec()` lists declared types nothing serves.
+- **Test:** `assertMediaTypesHaveCodecs($registry, $settings, $codecs)` fails on a declared type (an extra media type or a binding's request type) with no codec, beyond the types Laravel parses itself.
+
+With no codec bound, routes and documents are exactly as in 0.4.1.
+
 ### REST routes and the gate
 
 ```php

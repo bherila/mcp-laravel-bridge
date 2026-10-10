@@ -9,6 +9,7 @@ use Bherila\McpLaravelBridge\Capabilities\OperationRegistry;
 use Bherila\McpLaravelBridge\Capabilities\Principal;
 use Bherila\McpLaravelBridge\Capabilities\ScopeRule;
 use Bherila\McpLaravelBridge\Capabilities\SchemaRef;
+use Bherila\McpLaravelBridge\Http\PayloadCodecs;
 use JsonException;
 use LogicException;
 use RuntimeException;
@@ -31,7 +32,64 @@ final class OpenApiDocumentBuilder
         private readonly OperationRegistry $registry,
         private readonly OpenApiSettings $settings,
         private readonly ?SchemaCatalog $catalog = null,
+        /** Codecs the routes serve: each media type is offered wherever a body is JSON. */
+        private readonly ?PayloadCodecs $codecs = null,
     ) {}
+
+    /**
+     * Media types the settings declare that no codec serves, so the document
+     * would advertise an encoding the routes never produce.
+     *
+     * @return list<string>
+     */
+    public function mediaTypesWithoutCodec(): array
+    {
+        $served = $this->codecs?->mediaTypes() ?? [];
+
+        return array_values(array_filter(
+            $this->settings->extraMediaTypes,
+            static fn (string $type): bool => ! in_array(strtolower(trim($type)), $served, true),
+        ));
+    }
+
+    /**
+     * A declared response with JSON content is re-encoded by the codecs like
+     * a generated one, so it offers their types too, with the same schema.
+     *
+     * @param  array<string, mixed>  $response
+     * @return array<string, mixed>
+     */
+    private function withCodecTypes(array $response): array
+    {
+        if ($this->codecs === null || ! is_array($response['content'] ?? null)) {
+            return $response;
+        }
+        foreach ($response['content'] as $type => $media) {
+            if (PayloadCodecs::isJson((string) $type)) {
+                foreach ($this->codecs->mediaTypes() as $codecType) {
+                    $response['content'][$codecType] ??= $media;
+                }
+
+                break;
+            }
+        }
+
+        return $response;
+    }
+
+    /**
+     * The media types a body is offered in: its own, the declared extras, and
+     * each codec's type where the body is JSON.
+     *
+     * @param  list<string>  $own
+     * @return list<string>
+     */
+    private function mediaTypes(array $own): array
+    {
+        $codecs = $this->codecs !== null && array_filter($own, PayloadCodecs::isJson(...)) !== [] ? $this->codecs->mediaTypes() : [];
+
+        return array_values(array_unique([...$own, ...$this->settings->extraMediaTypes, ...$codecs]));
+    }
 
     /** @return array<string, mixed> */
     public function full(): array
@@ -166,10 +224,7 @@ final class OpenApiDocumentBuilder
         if ($body !== null) {
             $document['requestBody'] = [
                 'required' => $rest->requestBodyRequired,
-                'content' => array_fill_keys(
-                    array_values(array_unique([...$rest->requestContentTypes, ...$this->settings->extraMediaTypes])),
-                    ['schema' => $body],
-                ),
+                'content' => array_fill_keys($this->mediaTypes($rest->requestContentTypes), ['schema' => $body]),
             ];
         }
         if ($parameters !== []) {
@@ -236,10 +291,7 @@ final class OpenApiDocumentBuilder
         foreach ($rest->successStatuses as $status) {
             $response = ['description' => $rest->responseDescriptions[$status] ?? ($status === 201 ? 'Created' : 'Success')];
             if ($output !== null && $status !== 204) {
-                $response['content'] = array_fill_keys(
-                    array_values(array_unique(['application/json', ...$this->settings->extraMediaTypes])),
-                    ['schema' => $output],
-                );
+                $response['content'] = array_fill_keys($this->mediaTypes(['application/json']), ['schema' => $output]);
             }
             $responses[(string) $status] = $response;
         }
@@ -272,7 +324,7 @@ final class OpenApiDocumentBuilder
         self::assertResponseObject($response, "Operation [{$operation->id}]");
         $this->referenceComponentsIn($response, "Operation [{$operation->id}]");
 
-        return self::fragmentMaps($response);
+        return $this->withCodecTypes(self::fragmentMaps($response));
     }
 
     private static function status(Operation $operation, int|string $status): string
@@ -613,6 +665,9 @@ final class OpenApiDocumentBuilder
                 }
                 $this->referenceComponentsIn($declared, "OpenApiSettings::\${$section}");
                 $components[$section] = array_map(self::fragmentMaps(...), $declared);
+                if ($section === 'responses') {
+                    $components[$section] = array_map($this->withCodecTypes(...), $components[$section]);
+                }
             }
         }
         $schemas = [];

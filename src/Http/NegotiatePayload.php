@@ -1,0 +1,122 @@
+<?php
+
+namespace Bherila\McpLaravelBridge\Http;
+
+use Bherila\McpLaravelBridge\Capabilities\OperationRegistry;
+use Bherila\McpLaravelBridge\Capabilities\RestBinding;
+use Closure;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response as IlluminateResponse;
+use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\InputBag;
+use Symfony\Component\HttpFoundation\Response;
+use Throwable;
+
+/**
+ * Route middleware `NegotiatePayload:<operation id>`, attached by
+ * `Route::operation()` after the gate when a {@see PayloadCodecs} collection
+ * is bound. A request body in a codec's media type is decoded into the JSON
+ * input the controller already reads, where the operation takes a JSON body
+ * or lists that type; any other, including a body sent to an operation that
+ * documents none, is refused with 415. A JSON response is
+ * re-encoded when the Accept header prefers a codec's type. JSON stays the
+ * default, and every negotiated response varies on Accept.
+ */
+final class NegotiatePayload
+{
+    public function __construct(private readonly Container $container) {}
+
+    public function handle(Request $request, Closure $next, string $operationId): Response
+    {
+        $codecs = $this->container->make(PayloadCodecs::class);
+        $codec = $codecs->forContentType($request->headers->get('Content-Type'));
+        // Only a body is decoded: a bodiless request may still carry the header.
+        if ($codec !== null && $request->getContent() !== '') {
+            $rest = $this->container->make(OperationRegistry::class)->find($operationId)?->rest;
+            $accepted = array_map(strtolower(...), $rest?->requestContentTypes ?? []);
+            $takesJson = array_filter($accepted, PayloadCodecs::isJson(...)) !== [];
+            if (! self::takesBody($rest) || (! $takesJson && ! in_array(strtolower($codec->mediaType()), $accepted, true))) {
+                return self::error(415, "This operation does not accept {$codec->mediaType()} request bodies.");
+            }
+            try {
+                $data = $codec->decode($request->getContent());
+            } catch (InvalidArgumentException) {
+                // The codec's contract for a body it cannot read; anything
+                // else it throws is a server fault and surfaces as one.
+                return self::error(400, "The request body is not valid {$codec->mediaType()}.");
+            }
+            if (! is_array($data)) {
+                return self::error(400, 'The request body must decode to an object or a list.');
+            }
+            // As Laravel builds a JSON request: the decoded body is its input.
+            $request->headers->set('Content-Type', PayloadCodecs::JSON);
+            $request->setJson(new InputBag($data));
+            $request->request = $request->json();
+        }
+
+        $codec = $codecs->negotiate($request->headers->get('Accept'));
+        if ($codec !== null) {
+            // Downstream, the request wants JSON: that is what the controller
+            // and the exception handler (validation, 404, 500) must produce
+            // for this middleware to re-encode, instead of a redirect or HTML.
+            $request->headers->set('Accept', PayloadCodecs::JSON);
+        }
+        $response = $next($request);
+        $response->setVary('Accept', false);
+        if ($codec === null || ! self::isJson($response) || $response->getContent() === '' || $response->getContent() === false) {
+            return $response;
+        }
+        try {
+            $content = (string) $response->getContent();
+            $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+            // A codec gets plain arrays, which cannot keep an integer beyond
+            // PHP's range or tell {} (or {"0": …}) from a list. Such a
+            // response stays JSON rather than reach the client changed.
+            $exact = json_decode($content, false, 512, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING);
+            if (json_decode($content, true, 512, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING) !== $data
+                || json_encode($exact, JSON_THROW_ON_ERROR) !== json_encode($data, JSON_THROW_ON_ERROR)) {
+                return $response;
+            }
+        } catch (Throwable) {
+            return $response;
+        }
+
+        $encoded = new IlluminateResponse($codec->encode($data), $response->getStatusCode());
+        $encoded->headers = clone $response->headers;
+        if ($response instanceof JsonResponse && $response->exception !== null) {
+            $encoded->withException($response->exception);
+        }
+        $encoded->headers->set('Content-Type', $codec->mediaType());
+        // Validators computed over the JSON bytes do not describe these.
+        foreach (['Content-Length', 'ETag', 'Content-MD5', 'Digest', 'Content-Digest', 'Repr-Digest'] as $header) {
+            $encoded->headers->remove($header);
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * Whether the operation documents a request body: a declared one, or by
+     * default any method but GET, HEAD and DELETE (whose input is the query).
+     */
+    private static function takesBody(?RestBinding $rest): bool
+    {
+        return match (true) {
+            $rest === null, $rest->requestSchema === false => false,
+            $rest->requestSchema !== null => true,
+            default => ! in_array(strtoupper($rest->method), ['GET', 'HEAD', 'DELETE'], true),
+        };
+    }
+
+    private static function isJson(Response $response): bool
+    {
+        return $response instanceof JsonResponse || PayloadCodecs::isJson((string) $response->headers->get('Content-Type'));
+    }
+
+    private static function error(int $status, string $message): JsonResponse
+    {
+        return new JsonResponse(['message' => $message], $status, ['Cache-Control' => 'no-store', 'Vary' => 'Accept']);
+    }
+}
