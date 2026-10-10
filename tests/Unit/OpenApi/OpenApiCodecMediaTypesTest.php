@@ -77,5 +77,9 @@ final class OpenApiCodecMediaTypesTest extends TestCase
             self::assertStringContainsString('text/csv (operation [things.import])', $failure->getMessage());
             self::assertStringNotContainsString('vnd.things+json', $failure->getMessage());
         }
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('multipart/form-data (OpenApiSettings::$extraMediaTypes)');
+        self::assertMediaTypesHaveCodecs($registry, self::settings(['multipart/form-data']), $codecs, ['text/csv']);
     }
 }

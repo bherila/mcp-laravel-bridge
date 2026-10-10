@@ -177,23 +177,26 @@ trait OperationRegistryAssertions
      */
     public static function assertMediaTypesHaveCodecs(OperationRegistry $registry, OpenApiSettings $settings, ?PayloadCodecs $codecs, array $handledElsewhere = []): void
     {
-        $native = array_map(strtolower(...), [PayloadCodecs::JSON, 'multipart/form-data', 'application/x-www-form-urlencoded', ...$handledElsewhere]);
-        $declared = [];
+        // Laravel parses these request bodies itself, but an extra media type
+        // is also offered for every JSON response, which only a codec writes.
+        $parsed = array_map(strtolower(...), ['multipart/form-data', 'application/x-www-form-urlencoded', ...$handledElsewhere]);
+        $served = $codecs?->mediaTypes() ?? [];
+        $missing = [];
         foreach ($settings->extraMediaTypes as $type) {
-            $declared[strtolower(trim($type))][] = 'OpenApiSettings::$extraMediaTypes';
+            $type = strtolower(trim($type));
+            if ($type !== PayloadCodecs::JSON && ! in_array($type, $served, true)) {
+                $missing[$type][] = 'OpenApiSettings::$extraMediaTypes';
+            }
         }
         foreach ($registry->all() as $operation) {
             foreach ($operation->rest?->requestContentTypes ?? [] as $type) {
-                $declared[strtolower(trim($type))][] = "operation [{$operation->id}]";
+                $type = strtolower(trim($type));
+                if (! PayloadCodecs::isJson($type) && ! in_array($type, $parsed, true) && ! in_array($type, $served, true)) {
+                    $missing[$type][] = "operation [{$operation->id}]";
+                }
             }
         }
-        $served = $codecs?->mediaTypes() ?? [];
-        $missing = [];
-        foreach ($declared as $type => $where) {
-            if (! in_array($type, $native, true) && ! str_ends_with($type, '+json') && ! in_array($type, $served, true)) {
-                $missing[] = "{$type} (".implode(', ', array_unique($where)).')';
-            }
-        }
+        $missing = array_map(static fn (string $type, array $where): string => "{$type} (".implode(', ', array_unique($where)).')', array_keys($missing), $missing);
         Assert::assertSame([], $missing, 'Declared media types without a codec: '.implode('; ', $missing));
     }
 
