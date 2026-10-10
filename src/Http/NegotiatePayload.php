@@ -33,7 +33,8 @@ final class NegotiatePayload
         if ($codec !== null && $request->getContent() !== '') {
             $accepted = $this->container->make(OperationRegistry::class)->find($operationId)?->rest?->requestContentTypes ?? [];
             $accepted = array_map(strtolower(...), $accepted);
-            if (! in_array(PayloadCodecs::JSON, $accepted, true) && ! in_array(strtolower($codec->mediaType()), $accepted, true)) {
+            $takesJson = array_filter($accepted, PayloadCodecs::isJson(...)) !== [];
+            if (! $takesJson && ! in_array(strtolower($codec->mediaType()), $accepted, true)) {
                 return self::error(415, "This operation does not accept {$codec->mediaType()} request bodies.");
             }
             try {
@@ -81,9 +82,7 @@ final class NegotiatePayload
 
     private static function isJson(Response $response): bool
     {
-        $type = strtolower(trim(explode(';', (string) $response->headers->get('Content-Type'))[0]));
-
-        return $response instanceof JsonResponse || $type === PayloadCodecs::JSON || str_ends_with($type, '+json');
+        return $response instanceof JsonResponse || PayloadCodecs::isJson((string) $response->headers->get('Content-Type'));
     }
 
     private static function error(int $status, string $message): JsonResponse

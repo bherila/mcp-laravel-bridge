@@ -25,6 +25,7 @@ final class OpenApiCodecMediaTypesTest extends TestCase
 
         return (new OperationRegistry)->register(
             Fixtures::write('things.create', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things'), 'input' => $object, 'output' => $object]),
+            Fixtures::write('things.patch', new Requirement(['things:write']), ['rest' => new RestBinding('PATCH', '/things/{thing}', requestContentTypes: ['application/merge-patch+json']), 'input' => $object]),
             Fixtures::write('things.upload', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things/upload', requestContentTypes: ['multipart/form-data']), 'input' => $object]),
         );
     }
@@ -41,6 +42,7 @@ final class OpenApiCodecMediaTypesTest extends TestCase
         self::assertSame(['application/json', 'application/x-test'], array_keys($paths['/things']['post']['requestBody']['content']));
         self::assertSame(['application/json', 'application/x-test'], array_keys($paths['/things']['post']['responses'][200]['content']));
         self::assertSame(['multipart/form-data'], array_keys($paths['/things/upload']['post']['requestBody']['content']), 'A multipart body is not JSON');
+        self::assertSame(['application/merge-patch+json', 'application/x-test'], array_keys($paths['/things/{thing}']['patch']['requestBody']['content']), 'A +json body is JSON');
     }
 
     public function test_declared_extra_types_still_work_and_are_not_repeated(): void

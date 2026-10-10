@@ -30,6 +30,7 @@ final class NegotiatePayloadTest extends TestCase
             Fixtures::write('things.create', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things')]),
             Fixtures::write('things.upload', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things/upload', requestContentTypes: ['multipart/form-data'])]),
             Fixtures::read('things.file', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing}/file')]),
+            Fixtures::write('things.patch', new Requirement(['things:write']), ['rest' => new RestBinding('PATCH', '/things/{thing}', requestContentTypes: ['application/merge-patch+json'])]),
             Fixtures::write('things.fail', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things/fail')]),
         );
         $this->app->instance(OperationRegistry::class, $this->registry);
@@ -52,6 +53,7 @@ final class NegotiatePayloadTest extends TestCase
             Route::operation('things.show', static fn (string $thing) => ['thing' => $thing, 'tags' => ['a', 'b']]);
             Route::operation('things.create', static fn (Request $request) => response()->json(['created' => $request->input('name'), 'all' => $request->all()], 201));
             Route::operation('things.upload', static fn () => ['ok' => true]);
+            Route::operation('things.patch', static fn (Request $request) => ['all' => $request->all()]);
             Route::operation('things.fail', static function (Request $request): never {
                 $request->validate(['name' => 'required']);
                 abort(500);
@@ -129,6 +131,14 @@ final class NegotiatePayloadTest extends TestCase
 
         $this->call('GET', '/api/things/7', [], [], [], ['CONTENT_TYPE' => 'application/x-test', 'HTTP_X_TEST_SCOPES' => 'things:read', 'HTTP_ACCEPT' => 'application/json'])
             ->assertOk()->assertJsonPath('thing', '7');
+    }
+
+    public function test_a_structured_suffix_json_body_accepts_a_codec(): void
+    {
+        $this->withCodecs();
+
+        $this->call('PATCH', '/api/things/7', [], [], [], ['CONTENT_TYPE' => 'application/x-test', 'HTTP_ACCEPT' => 'application/json', 'HTTP_X_TEST_SCOPES' => 'things:write'], "TEST\n{\"name\":\"W\"}")
+            ->assertOk()->assertExactJson(['all' => ['name' => 'W']]);
     }
 
     public function test_an_invalid_or_unaccepted_body_is_refused(): void

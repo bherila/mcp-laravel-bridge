@@ -61,7 +61,7 @@ final class OpenApiDocumentBuilder
      */
     private function mediaTypes(array $own): array
     {
-        $codecs = $this->codecs !== null && in_array(PayloadCodecs::JSON, $own, true) ? $this->codecs->mediaTypes() : [];
+        $codecs = $this->codecs !== null && array_filter($own, PayloadCodecs::isJson(...)) !== [] ? $this->codecs->mediaTypes() : [];
 
         return array_values(array_unique([...$own, ...$this->settings->extraMediaTypes, ...$codecs]));
     }

@@ -32,6 +32,14 @@ final readonly class PayloadCodecs
         $this->codecs = $byType;
     }
 
+    /** Whether a media type is JSON: `application/json` or a `+json` structured suffix. */
+    public static function isJson(string $mediaType): bool
+    {
+        $type = self::normalize($mediaType);
+
+        return $type === self::JSON || str_ends_with($type, '+json');
+    }
+
     /** @return list<string> in registration order */
     public function mediaTypes(): array
     {
