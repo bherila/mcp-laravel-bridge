@@ -75,7 +75,10 @@ final class NegotiatePayload
             $encoded->withException($response->exception);
         }
         $encoded->headers->set('Content-Type', $codec->mediaType());
-        $encoded->headers->remove('Content-Length');
+        // Validators computed over the JSON bytes do not describe these.
+        foreach (['Content-Length', 'ETag', 'Content-MD5', 'Digest', 'Content-Digest', 'Repr-Digest'] as $header) {
+            $encoded->headers->remove($header);
+        }
 
         return $encoded;
     }

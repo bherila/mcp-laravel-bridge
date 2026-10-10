@@ -50,7 +50,7 @@ final class NegotiatePayloadTest extends TestCase
     {
         OperationRoutes::macro();
         Route::prefix('api')->group(static function (): void {
-            Route::operation('things.show', static fn (string $thing) => ['thing' => $thing, 'tags' => ['a', 'b']]);
+            Route::operation('things.show', static fn (string $thing) => response()->json(['thing' => $thing, 'tags' => ['a', 'b']])->setEtag('json-bytes')->header('Digest', 'sha-256=x'));
             Route::operation('things.create', static fn (Request $request) => response()->json(['created' => $request->input('name'), 'all' => $request->all()], 201));
             Route::operation('things.upload', static fn () => ['ok' => true]);
             Route::operation('things.patch', static fn (Request $request) => ['all' => $request->all()]);
@@ -107,6 +107,8 @@ final class NegotiatePayloadTest extends TestCase
 
         $response->assertOk()->assertHeader('Content-Type', 'application/x-test');
         self::assertSame("TEST\n".json_encode(['thing' => '7', 'tags' => ['a', 'b']]), $response->getContent());
+        self::assertNull($response->headers->get('ETag'), 'A validator of the JSON bytes is dropped');
+        self::assertNull($response->headers->get('Digest'));
         self::assertStringContainsString('Accept', (string) $response->headers->get('Vary'));
     }
 
