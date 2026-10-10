@@ -297,6 +297,20 @@ final class OpenApiSpecParityTest extends TestCase
         self::builder(['parameters' => [...self::settings()->parameters, 'Cursor' => ['name' => 'cursor', 'in' => 'query']]])->full();
     }
 
+    public function test_a_response_component_must_be_a_response_object(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('OpenApiSettings::$responses[Error] declares a response without a description');
+        self::builder(['responses' => ['Error' => ['content' => []], 'NotFound' => ['$ref' => '#/components/responses/Error']]])->full();
+    }
+
+    public function test_a_response_header_needs_a_schema_or_content(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('header [X-Page]');
+        self::builder(operations: [Fixtures::read('things.list', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things', responses: [200 => ['description' => 'x', 'headers' => ['X-Page' => ['description' => 'y']]]])])])->full();
+    }
+
     public function test_a_settings_component_must_resolve(): void
     {
         $this->expectException(LogicException::class);

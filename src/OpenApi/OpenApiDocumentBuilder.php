@@ -258,6 +258,7 @@ final class OpenApiDocumentBuilder
         if (! is_array($response) || ! is_string($response['description'] ?? null)) {
             throw new LogicException("Operation [{$operation->id}] declares a response that is neither a component name nor a response object with a description.");
         }
+        self::assertResponseObject($response, "Operation [{$operation->id}]");
         $this->referenceComponentsIn($response, "Operation [{$operation->id}]");
 
         return self::fragmentMaps($response);
@@ -343,6 +344,25 @@ final class OpenApiDocumentBuilder
         }
         if (array_key_exists('schema', $parameter) === array_key_exists('content', $parameter)) {
             throw new LogicException("{$owner} declares parameter [{$parameter['name']}] without exactly one of a schema or a content map.");
+        }
+    }
+
+    /**
+     * A response object OpenAPI accepts: a description, or (as a component)
+     * only a reference to another one.
+     *
+     * @param  array<string, mixed>  $response
+     */
+    private static function assertResponseObject(array $response, string $owner): void
+    {
+        $reference = array_keys($response) === ['$ref'] && is_string($response['$ref']);
+        if (! $reference && ! is_string($response['description'] ?? null)) {
+            throw new LogicException("{$owner} declares a response without a description.");
+        }
+        foreach (is_array($response['headers'] ?? null) ? $response['headers'] : [] as $name => $header) {
+            if (is_array($header) && ! array_key_exists('$ref', $header) && array_key_exists('schema', $header) === array_key_exists('content', $header)) {
+                throw new LogicException("{$owner} declares header [{$name}] without exactly one of a schema or a content map.");
+            }
         }
     }
 
@@ -567,8 +587,10 @@ final class OpenApiDocumentBuilder
         $components = ['securitySchemes' => $this->securitySchemes() ?: new stdClass];
         foreach (['parameters' => $this->settings->parameters, 'responses' => $this->settings->responses] as $section => $declared) {
             if ($declared !== []) {
-                if ($section === 'parameters') {
-                    array_walk($declared, static fn (array $parameter, string $name) => self::assertParameterObject($parameter, "OpenApiSettings::\$parameters[{$name}]"));
+                foreach ($declared as $name => $fragment) {
+                    $section === 'parameters'
+                        ? self::assertParameterObject($fragment, "OpenApiSettings::\$parameters[{$name}]")
+                        : self::assertResponseObject($fragment, "OpenApiSettings::\$responses[{$name}]");
                 }
                 $this->referenceComponentsIn($declared, "OpenApiSettings::\${$section}");
                 $components[$section] = array_map(self::fragmentMaps(...), $declared);
