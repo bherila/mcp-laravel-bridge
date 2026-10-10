@@ -54,7 +54,7 @@ final class NegotiatePayloadTest extends TestCase
             Route::operation('things.show', static fn (string $thing) => response()->json(['thing' => $thing, 'tags' => ['a', 'b']])->setEtag('json-bytes')->header('Digest', 'sha-256=x'));
             Route::operation('things.create', static fn (Request $request) => response()->json(['created' => $request->input('name'), 'all' => $request->all()], 201));
             Route::operation('things.upload', static fn () => ['ok' => true]);
-            Route::operation('things.big', static fn () => response('{"id":123456789012345678901234567890}', 200, ['Content-Type' => 'application/json']));
+            Route::operation('things.big', static fn (Request $request) => response($request->query('shape') === 'object' ? '{"meta":{},"map":{"0":"x"}}' : '{"id":123456789012345678901234567890}', 200, ['Content-Type' => 'application/json']));
             Route::operation('things.patch', static fn (Request $request) => ['all' => $request->all()]);
             Route::operation('things.fail', static function (Request $request): never {
                 $request->validate(['name' => 'required']);
@@ -198,6 +198,10 @@ final class NegotiatePayloadTest extends TestCase
 
         $response->assertOk()->assertHeader('Content-Type', 'application/json');
         self::assertSame('{"id":123456789012345678901234567890}', $response->getContent());
+
+        $objects = $this->get('/api/big-things?shape=object', ['X-Test-Scopes' => 'things:read', 'Accept' => 'application/x-test']);
+        $objects->assertOk()->assertHeader('Content-Type', 'application/json');
+        self::assertSame('{"meta":{},"map":{"0":"x"}}', $objects->getContent(), 'An empty or numerically keyed object is not turned into a list');
     }
 
     public function test_a_non_json_response_is_left_alone(): void

@@ -69,10 +69,14 @@ final class NegotiatePayload
             return $response;
         }
         try {
-            $data = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
-            // An integer beyond PHP's range would reach the codec as a float
-            // with different digits; such a response stays JSON.
-            if (json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING) !== $data) {
+            $content = (string) $response->getContent();
+            $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+            // A codec gets plain arrays, which cannot keep an integer beyond
+            // PHP's range or tell {} (or {"0": …}) from a list. Such a
+            // response stays JSON rather than reach the client changed.
+            $exact = json_decode($content, false, 512, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING);
+            if (json_decode($content, true, 512, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING) !== $data
+                || json_encode($exact, JSON_THROW_ON_ERROR) !== json_encode($data, JSON_THROW_ON_ERROR)) {
                 return $response;
             }
         } catch (Throwable) {
