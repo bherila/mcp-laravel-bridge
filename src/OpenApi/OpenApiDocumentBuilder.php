@@ -392,8 +392,8 @@ final class OpenApiDocumentBuilder
             return;
         }
         foreach ($node as $key => $value) {
-            if (in_array($key, ['example', 'examples', 'default', 'enum', 'const'], true)) {
-                // Literal payload data: a "$ref" there is an ordinary field.
+            if (in_array($key, ['example', 'examples', 'default', 'enum', 'const'], true) || str_starts_with((string) $key, 'x-')) {
+                // Literal payload or extension data: a "$ref" there is an ordinary field.
                 continue;
             }
             if ($key === '$ref' && is_string($value)) {

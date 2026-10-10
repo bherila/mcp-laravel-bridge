@@ -167,7 +167,7 @@ final class OpenApiSpecParityTest extends TestCase
             'schema' => ['type' => 'object', 'default' => ['$ref' => 'literal']],
             'example' => ['$ref' => 'not a pointer'],
             'examples' => ['one' => ['value' => ['$ref' => 'https://data.example.test/x']]],
-        ]]];
+        ]], 'x-metadata' => ['$ref' => 'internal-id']];
         $document = self::builder(operations: [Fixtures::read('things.list', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things', responses: [200 => $response])])])->full();
 
         self::assertSame(['$ref' => 'not a pointer'], $document['paths']['/things']['get']['responses'][200]['content']['application/json']['example']);
