@@ -319,6 +319,44 @@ final class OpenApiDocumentBuilderTest extends TestCase
         }
     }
 
+    /**
+     * Every 0.4.1 option is opt-in: with the defaults, a document is byte for
+     * byte what 0.4.0 generated. The fixture was written by 0.4.0 and is never
+     * regenerated.
+     */
+    public function test_default_output_is_byte_identical_to_v0_4_0(): void
+    {
+        $registry = $this->registry()->register(
+            Fixtures::write('catalog.create', new Requirement(['things:write']), [
+                'rest' => new RestBinding('POST', '/catalog', successStatuses: [201]),
+                'input' => SchemaRef::requestOf('things.create'),
+                'output' => SchemaRef::responseOf('things.create'),
+                'deprecation' => 'Use things.create.',
+            ]),
+            Fixtures::write('things.delete', new Requirement(['things:write']), [
+                'rest' => new RestBinding('DELETE', '/things/{thing}', pathParameters: ['thing']),
+                'effect' => Effect::Destructive,
+                'safety' => new WriteSafety(idempotencyKey: IdempotencyKey::HeaderAndArgument, expectedVersion: true, confirm: true),
+                'input' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['thing', 'expected_version'], 'properties' => [
+                    'thing' => ['type' => 'integer', 'description' => 'Thing id'],
+                    'expected_version' => ['type' => 'string'],
+                ]],
+            ]),
+        );
+        $builder = new OpenApiDocumentBuilder($registry, $this->settings(), new SchemaCatalog(__DIR__.'/../../Fixtures/openapi.json'));
+        $fixture = __DIR__.'/../../Fixtures/openapi-generated-v0.4.0.json';
+        $path = tempnam(sys_get_temp_dir(), 'openapi');
+        try {
+            OpenApiDocumentBuilder::write($builder->full(), $path);
+            if (getenv('BRIDGE_WRITE_V040_FIXTURE') === '1') {
+                copy($path, $fixture);
+            }
+            self::assertSame((string) file_get_contents($fixture), (string) file_get_contents($path));
+        } finally {
+            unlink($path);
+        }
+    }
+
     /** @param  list<string>  $values @return list<string> */
     private static function sorted(array $values): array
     {

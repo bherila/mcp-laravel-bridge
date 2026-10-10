@@ -289,6 +289,36 @@ return response()->json($builder->full()); // or ->filtered($availability, $prin
 - **Extensions:** effect, idempotency, write safety, MCP tool name and dependencies are emitted under `x-agent-…`, with the prefix configurable. Declared `extensions` are added too.
 - **Spec-first migration:** `OpenApiDocumentBuilder::differences($builder->full(), $shippedPath)` lists JSON-pointer mismatches against a shipped document. Switch to generation when the list is empty; `write()` saves the result.
 
+#### Reproducing a hand-written document (0.4.1)
+
+Every option below is opt-in; with none set, the document is byte for byte what 0.4.0 generated.
+
+```php
+new RestBinding('DELETE', '/things/{thing}',
+    description: 'Deletes one thing at its current version.', // or false for none; null keeps the operation's
+    parameters: ['ThingId', 'IdempotencyKey', ['name' => 'reason', 'in' => 'query', 'schema' => ['type' => 'string']]],
+    requestSchema: SchemaRef::openApi('ExpectedVersion'),     // the REST body; also how a DELETE documents one
+    responseSchema: SchemaRef::openApi('Deletion'),           // when the REST response differs from the MCP output
+    responseDescriptions: [200 => 'Thing deleted'],
+    responses: [404 => 'NotFound', 200 => [/* a whole response object, e.g. a binary download */]],
+    requestBodyRequired: true,
+);
+
+new OpenApiSettings(...,
+    summaries: false,            // no summary unless a binding declares one
+    agentExtensions: false,      // no x-agent-*; an operation's own `extensions` are still emitted
+    parameters: ['ThingId' => [...], 'IdempotencyKey' => [...]],   // components/parameters
+    responses: ['Error' => [...], 'NotFound' => [...]],            // components/responses
+    sharedResponses: ['default' => 'Error'],                      // added to every operation
+    apiTokenBearerFormat: 'JWT', oauthDescription: '...', refreshUrl: false,
+);
+```
+
+- **Declared parameters** are exact and ordered: a string names a component (emitted as `$ref`), an array is inlined. They must cover every path placeholder once, mark path parameters required, and document the `Idempotency-Key` header the operation reads. With them, a GET or DELETE input is no longer turned into query parameters.
+- **Responses** are the success statuses, then the binding's `responses` (replacing a success response of the same status), then `sharedResponses` for statuses still undescribed.
+- **References** in declared fragments must resolve: a schema through the `SchemaCatalog` (and it is carried into `components/schemas`), a parameter or response through the settings. External references are refused.
+- **Drift check:** `OperationRegistryAssertions::assertOpenApiDocumentMatches($builder->full(), $checkedPath)` fails when a checked copy differs from the generated document in content or bytes. `UPDATE_OPERATION_SNAPSHOTS=1` rewrites it.
+
 ### REST routes and the gate
 
 ```php

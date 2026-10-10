@@ -1,0 +1,294 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Things API",
+        "version": "1"
+    },
+    "servers": [
+        {
+            "url": "https://things.example.test/api/v1"
+        }
+    ],
+    "paths": {
+        "/things/{thing}": {
+            "delete": {
+                "operationId": "things.delete",
+                "description": "Deletes one thing at its current version.",
+                "security": [
+                    {
+                        "oauth2": [
+                            "things:write"
+                        ]
+                    },
+                    {
+                        "apiToken": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExpectedVersion"
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ThingId"
+                    },
+                    {
+                        "$ref": "#/components/parameters/IdempotencyKey"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Thing deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Deletion"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "default": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/things/{thing}/file": {
+            "get": {
+                "operationId": "things.download",
+                "summary": "Download the file",
+                "security": [
+                    {
+                        "oauth2": [
+                            "things:read"
+                        ]
+                    },
+                    {
+                        "apiToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ThingId"
+                    },
+                    {
+                        "name": "signature",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The file",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/things": {
+            "get": {
+                "operationId": "things.list",
+                "security": [
+                    {
+                        "oauth2": [
+                            "things:read"
+                        ]
+                    },
+                    {
+                        "apiToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Limit"
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/ThingStatus"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "One page of things",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ThingList"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "apiToken": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "A personal API token, carrying the permissions chosen when it was created."
+            },
+            "oauth2": {
+                "type": "oauth2",
+                "flows": {
+                    "authorizationCode": {
+                        "authorizationUrl": "https://things.example.test/oauth/authorize",
+                        "tokenUrl": "https://things.example.test/oauth/token",
+                        "refreshUrl": "https://things.example.test/oauth/token",
+                        "scopes": {
+                            "things:read": "Read things",
+                            "things:write": "Write things"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": {
+            "ThingId": {
+                "name": "thing",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            },
+            "Limit": {
+                "name": "limit",
+                "in": "query",
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                }
+            },
+            "IdempotencyKey": {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                }
+            }
+        },
+        "responses": {
+            "Error": {
+                "description": "Any error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "NotFound": {
+                "description": "No such thing",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "schemas": {
+            "Deletion": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "deleted"
+                ],
+                "properties": {
+                    "deleted": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "Error": {
+                "type": "object",
+                "required": [
+                    "message"
+                ],
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ExpectedVersion": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "expected_version"
+                ],
+                "properties": {
+                    "expected_version": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Thing": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/ThingStatus"
+                    }
+                }
+            },
+            "ThingList": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Thing"
+                        }
+                    }
+                }
+            },
+            "ThingStatus": {
+                "type": "string",
+                "enum": [
+                    "active",
+                    "archived"
+                ]
+            }
+        }
+    }
+}

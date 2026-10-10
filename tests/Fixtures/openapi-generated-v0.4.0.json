@@ -1,0 +1,459 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Things API",
+        "version": "1"
+    },
+    "servers": [
+        {
+            "url": "https://things.example.test/api/v1"
+        }
+    ],
+    "paths": {
+        "/catalog": {
+            "post": {
+                "operationId": "catalog.create",
+                "summary": "catalog.create",
+                "description": "Write catalog.create.\n\nDeprecated: Use things.create.",
+                "deprecated": true,
+                "security": [
+                    {
+                        "oauth2": [
+                            "things:write"
+                        ]
+                    },
+                    {
+                        "apiToken": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateThing"
+                            }
+                        },
+                        "application/toon": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateThing"
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "description": "Reuse the same key only to retry an identical request.",
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ThingEnvelope"
+                                }
+                            },
+                            "application/toon": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ThingEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-agent-effect": "local_write",
+                "x-agent-idempotent": true,
+                "x-agent-write-safety": {
+                    "idempotency_key": "header",
+                    "expected_version": true
+                },
+                "x-agent-mcp-tool": "catalog.create"
+            }
+        },
+        "/health": {
+            "get": {
+                "operationId": "health.get",
+                "summary": "health.get",
+                "description": "Read health.get.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                },
+                "x-agent-effect": "read",
+                "x-agent-idempotent": true,
+                "x-agent-mcp-tool": "health.get"
+            }
+        },
+        "/mcp": {
+            "post": {
+                "operationId": "mcp.exchange",
+                "summary": "mcp.exchange",
+                "description": "Write mcp.exchange.",
+                "security": [
+                    {
+                        "oauth2": [
+                            "mcp:use"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                },
+                "x-agent-effect": "local_write",
+                "x-agent-idempotent": false,
+                "x-agent-write-safety": {
+                    "note": "JSON-RPC."
+                },
+                "x-agent-mcp-tool": "mcp.exchange"
+            }
+        },
+        "/things": {
+            "post": {
+                "operationId": "things.create",
+                "summary": "things.create",
+                "description": "Write things.create.",
+                "security": [
+                    {
+                        "oauth2": [
+                            "things:write"
+                        ]
+                    },
+                    {
+                        "apiToken": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        },
+                        "application/toon": {
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "description": "Reuse the same key only to retry an identical request.",
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "201": {
+                        "description": "Created"
+                    }
+                },
+                "x-agent-effect": "local_write",
+                "x-agent-idempotent": true,
+                "x-agent-write-safety": {
+                    "idempotency_key": "header"
+                },
+                "x-agent-mcp-tool": "things.create",
+                "x-agent-risk": "write"
+            }
+        },
+        "/things/{thing}": {
+            "delete": {
+                "operationId": "things.delete",
+                "summary": "things.delete",
+                "description": "Write things.delete.",
+                "security": [
+                    {
+                        "oauth2": [
+                            "things:write"
+                        ]
+                    },
+                    {
+                        "apiToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "thing",
+                        "in": "path",
+                        "required": true,
+                        "description": "Thing id",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": false,
+                        "description": "Reuse the same key only to retry an identical request.",
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                        }
+                    },
+                    {
+                        "name": "expected_version",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                },
+                "x-agent-effect": "destructive",
+                "x-agent-idempotent": true,
+                "x-agent-write-safety": {
+                    "idempotency_key": "header_and_argument",
+                    "expected_version": true,
+                    "confirm": true
+                },
+                "x-agent-mcp-tool": "things.delete"
+            }
+        },
+        "/projects/{project}/things": {
+            "get": {
+                "operationId": "things.list",
+                "summary": "things.list",
+                "description": "Read things.list.",
+                "tags": [
+                    "things"
+                ],
+                "security": [
+                    {
+                        "oauth2": [
+                            "things:read"
+                        ]
+                    },
+                    {
+                        "apiToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "project",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "description": "Page size",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "data": {
+                                            "type": "array"
+                                        }
+                                    }
+                                }
+                            },
+                            "application/toon": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "data": {
+                                            "type": "array"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-agent-effect": "read",
+                "x-agent-idempotent": true,
+                "x-agent-mcp-tool": "things.list"
+            }
+        },
+        "/things/search": {
+            "get": {
+                "operationId": "things.search",
+                "summary": "things.search",
+                "description": "Read things.search.",
+                "security": [
+                    {
+                        "oauth2": [
+                            "things:read"
+                        ]
+                    },
+                    {
+                        "oauth2": [
+                            "search:use"
+                        ]
+                    },
+                    {
+                        "apiToken": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                },
+                "x-agent-effect": "read",
+                "x-agent-idempotent": true,
+                "x-agent-mcp-tool": "things.search"
+            }
+        },
+        "/oauth/token": {
+            "delete": {
+                "operationId": "token.revoke",
+                "summary": "token.revoke",
+                "description": "Write token.revoke.",
+                "security": [
+                    {
+                        "oauth2": []
+                    },
+                    {
+                        "apiToken": []
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    }
+                },
+                "x-agent-effect": "local_write",
+                "x-agent-idempotent": false,
+                "x-agent-write-safety": {
+                    "note": "Revokes this credential."
+                },
+                "x-agent-mcp-tool": "token.revoke"
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "apiToken": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "A personal API token, carrying the permissions chosen when it was created."
+            },
+            "oauth2": {
+                "type": "oauth2",
+                "flows": {
+                    "authorizationCode": {
+                        "authorizationUrl": "https://things.example.test/oauth/authorize",
+                        "tokenUrl": "https://things.example.test/oauth/token",
+                        "refreshUrl": "https://things.example.test/oauth/token",
+                        "scopes": {
+                            "things:read": "Read things",
+                            "things:write": "Write things",
+                            "mcp:use": "Connect over MCP",
+                            "search:use": "search:use"
+                        }
+                    }
+                }
+            }
+        },
+        "schemas": {
+            "CreateThing": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "name"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Thing": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "id",
+                    "parent"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "parent": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/Thing"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                }
+            },
+            "ThingEnvelope": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "data"
+                ],
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/Thing"
+                    }
+                }
+            }
+        }
+    }
+}
