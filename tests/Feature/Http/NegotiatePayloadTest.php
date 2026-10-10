@@ -31,6 +31,7 @@ final class NegotiatePayloadTest extends TestCase
             Fixtures::write('things.upload', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things/upload', requestContentTypes: ['multipart/form-data'])]),
             Fixtures::read('things.file', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/things/{thing}/file')]),
             Fixtures::write('things.patch', new Requirement(['things:write']), ['rest' => new RestBinding('PATCH', '/things/{thing}', requestContentTypes: ['application/merge-patch+json'])]),
+            Fixtures::read('things.big', new Requirement(['things:read']), ['rest' => new RestBinding('GET', '/big-things')]),
             Fixtures::write('things.fail', new Requirement(['things:write']), ['rest' => new RestBinding('POST', '/things/fail')]),
         );
         $this->app->instance(OperationRegistry::class, $this->registry);
@@ -53,6 +54,7 @@ final class NegotiatePayloadTest extends TestCase
             Route::operation('things.show', static fn (string $thing) => response()->json(['thing' => $thing, 'tags' => ['a', 'b']])->setEtag('json-bytes')->header('Digest', 'sha-256=x'));
             Route::operation('things.create', static fn (Request $request) => response()->json(['created' => $request->input('name'), 'all' => $request->all()], 201));
             Route::operation('things.upload', static fn () => ['ok' => true]);
+            Route::operation('things.big', static fn () => response('{"id":123456789012345678901234567890}', 200, ['Content-Type' => 'application/json']));
             Route::operation('things.patch', static fn (Request $request) => ['all' => $request->all()]);
             Route::operation('things.fail', static function (Request $request): never {
                 $request->validate(['name' => 'required']);
@@ -175,6 +177,16 @@ final class NegotiatePayloadTest extends TestCase
         self::assertStringStartsWith("TEST\n", (string) $response->getContent());
         self::assertSame('The name field is required.', json_decode(substr((string) $response->getContent(), 5), true)['message']);
         self::assertStringContainsString('Accept', (string) $response->headers->get('Vary'));
+    }
+
+    public function test_a_response_a_codec_would_corrupt_stays_json(): void
+    {
+        $this->withCodecs();
+
+        $response = $this->get('/api/big-things', ['X-Test-Scopes' => 'things:read', 'Accept' => 'application/x-test']);
+
+        $response->assertOk()->assertHeader('Content-Type', 'application/json');
+        self::assertSame('{"id":123456789012345678901234567890}', $response->getContent());
     }
 
     public function test_a_non_json_response_is_left_alone(): void

@@ -65,6 +65,11 @@ final class NegotiatePayload
         }
         try {
             $data = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+            // An integer beyond PHP's range would reach the codec as a float
+            // with different digits; such a response stays JSON.
+            if (json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING) !== $data) {
+                return $response;
+            }
         } catch (Throwable) {
             return $response;
         }
