@@ -16,8 +16,13 @@ use Illuminate\Support\Facades\Route;
  */
 final class OperationRoutes
 {
-    /** @param  array{0: class-string|object, 1: string}|class-string|Closure  $action */
-    public static function register(OperationRegistry $registry, string $operationId, array|string|Closure $action): RoutingRoute
+    /**
+     * With a non-empty `PayloadCodecs`, the route also negotiates request and
+     * response encodings (`NegotiatePayload`), after the gate.
+     *
+     * @param  array{0: class-string|object, 1: string}|class-string|Closure  $action
+     */
+    public static function register(OperationRegistry $registry, string $operationId, array|string|Closure $action, ?PayloadCodecs $codecs = null): RoutingRoute
     {
         $operation = $registry->find($operationId) ?? throw new InvalidOperation("Operation [{$operationId}] is not registered.");
         $rest = $operation->rest ?? throw new InvalidOperation("Operation [{$operationId}] has no REST binding.");
@@ -40,16 +45,26 @@ final class OperationRoutes
             $name = substr($rest->routeName, strlen($prefix));
         }
 
-        return Route::match([strtoupper($rest->method)], $rest->path, $action)
+        $route = Route::match([strtoupper($rest->method)], $rest->path, $action)
             ->name($name)
             ->middleware(GateOperation::class.':'.$operationId);
+        if ($codecs !== null && ! $codecs->isEmpty()) {
+            $route->middleware(NegotiatePayload::class.':'.$operationId);
+        }
+
+        return $route;
     }
 
-    /** `Route::operation('things.list', [ThingController::class, 'index'])`, resolving the registry from the container. */
+    /** `Route::operation('things.list', [ThingController::class, 'index'])`, resolving the registry (and any bound `PayloadCodecs`) from the container. */
     public static function macro(): void
     {
         if (! Route::hasMacro('operation')) {
-            Route::macro('operation', static fn (string $operationId, array|string|Closure $action): RoutingRoute => OperationRoutes::register(app(OperationRegistry::class), $operationId, $action));
+            Route::macro('operation', static fn (string $operationId, array|string|Closure $action): RoutingRoute => OperationRoutes::register(
+                app(OperationRegistry::class),
+                $operationId,
+                $action,
+                app()->bound(PayloadCodecs::class) ? app(PayloadCodecs::class) : null,
+            ));
         }
     }
 }

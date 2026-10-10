@@ -9,6 +9,7 @@ use Bherila\McpLaravelBridge\Capabilities\OperationRegistry;
 use Bherila\McpLaravelBridge\Capabilities\Principal;
 use Bherila\McpLaravelBridge\Capabilities\ScopeRule;
 use Bherila\McpLaravelBridge\Capabilities\SchemaRef;
+use Bherila\McpLaravelBridge\Http\PayloadCodecs;
 use JsonException;
 use LogicException;
 use RuntimeException;
@@ -31,7 +32,39 @@ final class OpenApiDocumentBuilder
         private readonly OperationRegistry $registry,
         private readonly OpenApiSettings $settings,
         private readonly ?SchemaCatalog $catalog = null,
+        /** Codecs the routes serve: each media type is offered wherever a body is JSON. */
+        private readonly ?PayloadCodecs $codecs = null,
     ) {}
+
+    /**
+     * Media types the settings declare that no codec serves, so the document
+     * would advertise an encoding the routes never produce.
+     *
+     * @return list<string>
+     */
+    public function mediaTypesWithoutCodec(): array
+    {
+        $served = $this->codecs?->mediaTypes() ?? [];
+
+        return array_values(array_filter(
+            $this->settings->extraMediaTypes,
+            static fn (string $type): bool => ! in_array(strtolower(trim($type)), $served, true),
+        ));
+    }
+
+    /**
+     * The media types a body is offered in: its own, the declared extras, and
+     * each codec's type where the body is JSON.
+     *
+     * @param  list<string>  $own
+     * @return list<string>
+     */
+    private function mediaTypes(array $own): array
+    {
+        $codecs = $this->codecs !== null && in_array(PayloadCodecs::JSON, $own, true) ? $this->codecs->mediaTypes() : [];
+
+        return array_values(array_unique([...$own, ...$this->settings->extraMediaTypes, ...$codecs]));
+    }
 
     /** @return array<string, mixed> */
     public function full(): array
@@ -166,10 +199,7 @@ final class OpenApiDocumentBuilder
         if ($body !== null) {
             $document['requestBody'] = [
                 'required' => $rest->requestBodyRequired,
-                'content' => array_fill_keys(
-                    array_values(array_unique([...$rest->requestContentTypes, ...$this->settings->extraMediaTypes])),
-                    ['schema' => $body],
-                ),
+                'content' => array_fill_keys($this->mediaTypes($rest->requestContentTypes), ['schema' => $body]),
             ];
         }
         if ($parameters !== []) {
@@ -236,10 +266,7 @@ final class OpenApiDocumentBuilder
         foreach ($rest->successStatuses as $status) {
             $response = ['description' => $rest->responseDescriptions[$status] ?? ($status === 201 ? 'Created' : 'Success')];
             if ($output !== null && $status !== 204) {
-                $response['content'] = array_fill_keys(
-                    array_values(array_unique(['application/json', ...$this->settings->extraMediaTypes])),
-                    ['schema' => $output],
-                );
+                $response['content'] = array_fill_keys($this->mediaTypes(['application/json']), ['schema' => $output]);
             }
             $responses[(string) $status] = $response;
         }
