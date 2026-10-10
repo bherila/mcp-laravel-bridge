@@ -92,6 +92,13 @@ final class NegotiatePayloadTest extends TestCase
         ], Route::getRoutes()->getByName('things.show')->gatherMiddleware());
     }
 
+    public function test_codecs_passed_to_registration_must_be_the_bound_ones(): void
+    {
+        $this->expectException(\Bherila\McpLaravelBridge\Capabilities\InvalidOperation::class);
+        $this->expectExceptionMessage('not the container');
+        OperationRoutes::register($this->registry, 'things.show', static fn () => [], new PayloadCodecs(new PrefixedJsonCodec));
+    }
+
     public function test_json_stays_the_default(): void
     {
         $this->withCodecs();

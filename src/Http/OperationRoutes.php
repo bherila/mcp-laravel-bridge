@@ -49,6 +49,11 @@ final class OperationRoutes
             ->name($name)
             ->middleware(GateOperation::class.':'.$operationId);
         if ($codecs !== null && ! $codecs->isEmpty()) {
+            // The middleware resolves the collection from the container, so it
+            // must be this one, not one built empty on demand.
+            if (! app()->bound(PayloadCodecs::class) || app(PayloadCodecs::class) !== $codecs) {
+                throw new InvalidOperation("Operation [{$operationId}] is routed with payload codecs that are not the container's PayloadCodecs binding; bind them with app()->instance(PayloadCodecs::class, \$codecs).");
+            }
             $route->middleware(NegotiatePayload::class.':'.$operationId);
         }
 
