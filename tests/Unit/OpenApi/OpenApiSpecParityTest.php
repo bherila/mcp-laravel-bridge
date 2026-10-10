@@ -287,6 +287,7 @@ final class OpenApiSpecParityTest extends TestCase
         yield 'inline $ref' => [new RestBinding('GET', '/things', parameters: [['$ref' => '#/components/parameters/Limit']]), 'neither a component name'];
         yield 'nameless' => [new RestBinding('GET', '/things', parameters: [['in' => 'query']]), 'without a name'];
         yield 'unknown schema' => [new RestBinding('GET', '/things', parameters: [['name' => 'q', 'in' => 'query', 'schema' => ['$ref' => '#/components/schemas/Nope']]]), 'schema [Nope]'];
+        yield 'missing part of a schema' => [new RestBinding('GET', '/things', parameters: [['name' => 'q', 'in' => 'query', 'schema' => ['$ref' => '#/components/schemas/Thing/properties/missing']]]), 'which schema [Thing] does not contain'];
         yield 'external reference' => [new RestBinding('GET', '/things', parameters: [['name' => 'q', 'in' => 'query', 'schema' => ['$ref' => 'https://schemas.example.test/q.json']]]), 'not a component of this document'];
         yield 'unknown response component' => [new RestBinding('GET', '/things', responses: [404 => 'Gone']), 'names response [Gone]'];
         yield 'response without description' => [new RestBinding('GET', '/things', responses: [404 => ['content' => []]]), 'with a description'];

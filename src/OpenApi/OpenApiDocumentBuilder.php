@@ -406,6 +406,14 @@ final class OpenApiDocumentBuilder
                     if ($this->catalog === null || ! in_array($name, $this->catalog->componentIds(), true)) {
                         throw new LogicException("{$owner} references schema [{$name}], which no SchemaCatalog provides.");
                     }
+                    $target = $this->catalog->componentClosure($name)[$name];
+                    foreach (array_slice($segments, 4) as $segment) {
+                        $segment = str_replace(['~1', '~0'], ['/', '~'], $segment);
+                        if (! is_array($target) || ! array_key_exists($segment, $target)) {
+                            throw new LogicException("{$owner} references [{$value}], which schema [{$name}] does not contain.");
+                        }
+                        $target = $target[$segment];
+                    }
                     $this->components[$name] = true;
                 } elseif ($section === 'parameters' && $name !== '') {
                     if (! isset($this->settings->parameters[$name])) {
