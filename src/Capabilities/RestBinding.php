@@ -16,7 +16,7 @@ final readonly class RestBinding
      * @param  string|false|null  $summary  the document's summary: null for the operation title (when the settings print summaries), false for none
      * @param  string|false|null  $description  the document's description when it differs from the operation's (e.g. the MCP tool's prose): null for the operation's, false for none
      * @param  list<string|array<string, mixed>>|null  $parameters  the exact, ordered parameter list: a name from `OpenApiSettings::$parameters` (referenced by `$ref`) or an inline parameter object. Null derives them from the path, the idempotency key and a GET, HEAD or DELETE input.
-     * @param  array<string, mixed>|SchemaRef|null  $requestSchema  the request body when it differs from the input (e.g. MCP arguments that also carry the path parameters). Declaring one is also how a DELETE documents a body.
+     * @param  array<string, mixed>|SchemaRef|false|null  $requestSchema  the request body when it differs from the input (e.g. MCP arguments that also carry the path parameters); declaring one is also how a DELETE documents a body. False documents no body, whatever the input.
      * @param  array<string, mixed>|SchemaRef|null  $responseSchema  the success response body when it differs from the output
      * @param  array<int, string>  $responseDescriptions  success status => its description
      * @param  array<int|string, string|array<string, mixed>>  $responses  status => a name from `OpenApiSettings::$responses` or a response object; replaces a generated success response, otherwise adds one
@@ -32,7 +32,7 @@ final readonly class RestBinding
         public string|false|null $summary = null,
         public string|false|null $description = null,
         public ?array $parameters = null,
-        public array|SchemaRef|null $requestSchema = null,
+        public array|SchemaRef|false|null $requestSchema = null,
         public array|SchemaRef|null $responseSchema = null,
         public array $responseDescriptions = [],
         public array $responses = [],

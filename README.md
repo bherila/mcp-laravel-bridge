@@ -297,7 +297,7 @@ Every option below is opt-in; with none set, the document is byte for byte what 
 new RestBinding('DELETE', '/things/{thing}',
     description: 'Deletes one thing at its current version.', // or false for none; null keeps the operation's
     parameters: ['ThingId', 'IdempotencyKey', ['name' => 'reason', 'in' => 'query', 'schema' => ['type' => 'string']]],
-    requestSchema: SchemaRef::openApi('ExpectedVersion'),     // the REST body; also how a DELETE documents one
+    requestSchema: SchemaRef::openApi('ExpectedVersion'),     // the REST body; also how a DELETE documents one; false for none
     responseSchema: SchemaRef::openApi('Deletion'),           // when the REST response differs from the MCP output
     responseDescriptions: [200 => 'Thing deleted'],
     responses: [404 => 'NotFound', 200 => [/* a whole response object, e.g. a binary download */]],

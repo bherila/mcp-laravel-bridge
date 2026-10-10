@@ -7,7 +7,7 @@ Lets a spec-first application reproduce a well-formed hand-written OpenAPI docum
 - **`RestBinding`** gains documentation-only fields:
   - `summary` and `description`, each a string or `false` to omit;
   - `parameters`, an exact, ordered list of component names and inline parameter objects;
-  - `requestSchema` and `responseSchema`, for a REST body that differs from the MCP input or output. A declared request body is how a DELETE documents one;
+  - `requestSchema` and `responseSchema`, for a REST body that differs from the MCP input or output. A declared request body is how a DELETE documents one, and `requestSchema: false` documents none;
   - `responseDescriptions` per success status, and `responses` per status (a component name or a response object);
   - `requestBodyRequired`.
 - **`OpenApiSettings`** gains:

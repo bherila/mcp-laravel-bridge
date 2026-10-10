@@ -114,7 +114,9 @@ final class OpenApiDocumentBuilder
 
         $pathParameters = self::pathParameters($operation);
         $body = null;
-        if ($rest->requestSchema !== null) {
+        $noBody = $rest->requestSchema === false;
+        $queryMethod = in_array($method, ['GET', 'HEAD', 'DELETE'], true);
+        if ($rest->requestSchema !== null && $rest->requestSchema !== false) {
             if (in_array($method, ['GET', 'HEAD'], true)) {
                 // HTTP gives a GET or HEAD body no meaning; a client would drop it.
                 throw new LogicException("Operation [{$operation->id}] declares a request body on {$method}, which has no defined meaning.");
@@ -124,13 +126,13 @@ final class OpenApiDocumentBuilder
 
         if ($rest->parameters !== null) {
             $parameters = $this->declaredParameters($operation, $pathParameters);
-            if ($body === null && $operation->input !== null && ! in_array($method, ['GET', 'HEAD', 'DELETE'], true)) {
+            if ($body === null && ! $noBody && $operation->input !== null && ! $queryMethod) {
                 $body = $this->schema($operation->input);
             }
         } else {
             // A declared body replaces the input; otherwise the input becomes
             // query parameters or the body, as it always has.
-            $input = $body === null ? $this->schema($operation->input) : null;
+            $input = $body === null && ($queryMethod || ! $noBody) ? $this->schema($operation->input) : null;
             $resolved = $this->resolvedInput($operation);
             $declared = is_array($resolved['properties'] ?? null) ? $resolved['properties'] : [];
             $parameters = array_map(static function (string $name) use ($declared): array {
@@ -153,7 +155,7 @@ final class OpenApiDocumentBuilder
                     'schema' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 255],
                 ];
             }
-            if ($input !== null && in_array($method, ['GET', 'HEAD', 'DELETE'], true)) {
+            if ($input !== null && $queryMethod) {
                 array_push($parameters, ...self::queryParameters($operation->id, (array) $resolved, $pathParameters));
             } elseif ($input !== null) {
                 $body = $input;

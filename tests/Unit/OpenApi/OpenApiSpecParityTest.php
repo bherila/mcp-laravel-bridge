@@ -187,6 +187,24 @@ final class OpenApiSpecParityTest extends TestCase
         self::assertEquals(new \stdClass, $operation['responses'][200]['headers']['X-Page']['schema']['properties']);
     }
 
+    public function test_a_write_can_document_no_body_whatever_its_input(): void
+    {
+        $input = ['type' => 'object', 'properties' => ['thing' => ['type' => 'string']]];
+        $declared = self::builder(operations: [Fixtures::write('things.publish', new Requirement(['things:write']), [
+            'rest' => new RestBinding('POST', '/things/{thing}/publish', parameters: ['ThingId', 'IdempotencyKey'], requestSchema: false),
+            'input' => $input,
+        ])])->full()['paths']['/things/{thing}/publish']['post'];
+        $derived = self::builder(operations: [Fixtures::write('things.publish', new Requirement(['things:write']), [
+            'rest' => new RestBinding('POST', '/things/{thing}/publish', requestSchema: false),
+            'input' => $input,
+        ])])->full()['paths']['/things/{thing}/publish']['post'];
+
+        self::assertArrayNotHasKey('requestBody', $declared);
+        self::assertArrayNotHasKey('requestBody', $derived);
+        self::assertSame(['thing', 'Idempotency-Key'], array_column($derived['parameters'], 'name'), 'The input still types the path parameter');
+        self::assertSame(['type' => 'string'], $derived['parameters'][0]['schema']);
+    }
+
     public function test_a_get_cannot_declare_a_body(): void
     {
         $this->expectException(LogicException::class);
