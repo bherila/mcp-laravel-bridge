@@ -224,7 +224,14 @@ final class OpenApiDocumentBuilder
         if ($stray !== []) {
             throw new LogicException("Operation [{$operation->id}] describes status [".implode(', ', $stray).'], which is not one of its success statuses.');
         }
-        $output = $rest->responseSchema !== null ? $this->declaredSchema($rest->responseSchema, "Operation [{$operation->id}]") : $this->schema($operation->output);
+        // Every success response the binding replaces needs no output schema.
+        $replaced = array_map(static fn (int|string $status): string => (string) $status, array_keys($rest->responses));
+        $generated = array_filter($rest->successStatuses, static fn (int $status): bool => ! in_array((string) $status, $replaced, true));
+        $output = match (true) {
+            $rest->successStatuses !== [] && $generated === [] => null,
+            $rest->responseSchema !== null => $this->declaredSchema($rest->responseSchema, "Operation [{$operation->id}]"),
+            default => $this->schema($operation->output),
+        };
         $responses = [];
         foreach ($rest->successStatuses as $status) {
             $response = ['description' => $rest->responseDescriptions[$status] ?? ($status === 201 ? 'Created' : 'Success')];

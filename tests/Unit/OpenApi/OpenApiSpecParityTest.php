@@ -217,6 +217,16 @@ final class OpenApiSpecParityTest extends TestCase
         self::assertSame(['type' => 'object'], $document['paths']['/things']['post']['requestBody']['content']['application/json']['schema']);
     }
 
+    public function test_a_replaced_response_carries_no_output_schema(): void
+    {
+        $document = self::builder(operations: [Fixtures::read('things.download', new Requirement(['things:read']), [
+            'rest' => new RestBinding('GET', '/things/{thing}/file', parameters: ['ThingId'], responses: [200 => ['description' => 'The file', 'content' => ['application/pdf' => ['schema' => ['type' => 'string', 'format' => 'binary']]]]]),
+            'output' => SchemaRef::openApi('ThingList'),
+        ])])->full();
+
+        self::assertSame(['Error'], array_keys($document['components']['schemas']), 'Only the shared error schema');
+    }
+
     public function test_a_get_cannot_declare_a_body(): void
     {
         $this->expectException(LogicException::class);
