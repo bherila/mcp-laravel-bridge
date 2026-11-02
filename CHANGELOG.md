@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.3 - 2026-11-02
+
+Absolute URLs generated during an MCP tool call now use the client's origin (#31).
+
+- **`InternalAgentApiTransport`** builds its internal request from the outer request's scheme and raw `Host` header. Before, URLs generated during dispatch used `http://localhost`, so signed URLs were unusable by remote clients. Applications don't need to change anything.
+- **Behavior change:** a consuming route that reads the host, scheme or port during dispatch now sees the real values instead of `localhost`, `http` and `80`.
+- `X-Forwarded-Host` is not used, because `McpHttpSecurityMiddleware` doesn't validate it. A trusted `X-Forwarded-Proto` still sets the scheme.
+- A missing `Host`, or one that isn't `host[:port]`, keeps the earlier bare-path behavior, so a malformed value can't change where the request is dispatched.
+
 ## 0.4.2 - 2026-10-10
 
 Codec plug-in for extra media types (#22). Opt-in: with no codec bound, routes and documents are byte-identical to 0.4.1.
