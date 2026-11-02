@@ -239,6 +239,25 @@ final class InternalAgentApiTransportTest extends TestCase
         self::assertSame('http://localhost/x', $response->json['url']);
     }
 
+    public function test_an_api_prefix_that_already_has_an_origin_is_left_alone(): void
+    {
+        $this->originProbeRoute();
+        $outer = $this->bindOuter(Request::create('https://app.example.test/api/v1/mcp', 'POST'));
+        $transport = new InternalAgentApiTransport(
+            $this->app->make(Router::class),
+            $this->app->make(ExceptionHandler::class),
+            $outer,
+            $this->app,
+            apiPrefix: 'https://prefix.example.test:8443/api/v1',
+        );
+
+        $response = $transport->send('GET', 'origin');
+
+        self::assertSame(200, $response->status);
+        self::assertSame('https://prefix.example.test:8443/x', $response->json['url']);
+        self::assertSame('prefix.example.test', $response->json['host']);
+    }
+
     private function originProbeRoute(): void
     {
         $this->app->make(Router::class)->get('/api/v1/origin', static fn (Request $request) => response()->json([
