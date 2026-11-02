@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Request as RequestFacade;
+use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
@@ -63,7 +64,7 @@ class InternalAgentApiTransport implements AgentApiTransport
             }
 
             $request = Request::create(
-                uri: rtrim($this->apiPrefix, '/').'/'.ltrim($path, '/'),
+                uri: $this->internalUri($path),
                 method: strtoupper($method),
                 parameters: $parameters,
                 files: $files,
@@ -106,6 +107,29 @@ class InternalAgentApiTransport implements AgentApiTransport
                 @unlink($temporaryPath);
             }
         }
+    }
+
+    /**
+     * Gives the internal request the outer request's origin, so URLs generated during dispatch
+     * reach the client. The authority is the raw Host header, which McpHttpSecurityMiddleware
+     * validates; getHttpHost() can prefer X-Forwarded-Host, which that policy never checks.
+     * A Host that isn't host[:port] could move the dispatch to another path, so it is not used.
+     */
+    private function internalUri(string $path): string
+    {
+        $uri = rtrim($this->apiPrefix, '/').'/'.ltrim($path, '/');
+        $authority = $this->outerRequest->headers->get('Host');
+        if (! is_string($authority) || $authority === '') {
+            return $uri;
+        }
+
+        try {
+            McpHttpPolicy::normalizeHost($authority);
+        } catch (InvalidArgumentException) {
+            return $uri;
+        }
+
+        return $this->outerRequest->getScheme().'://'.$authority.$uri;
     }
 
     /** @param array<string, string> $headers @return array<string, string> */
