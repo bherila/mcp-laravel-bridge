@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4 - 2026-11-02
+
+Fixes a regression in 0.4.3. **Skip 0.4.3 if your `apiPrefix` includes a scheme and host.**
+
+- **`InternalAgentApiTransport`** leaves an `apiPrefix` that already has an origin unchanged, as it did before 0.4.3. In 0.4.3, the outer origin was added in front of it, so the internal request had the wrong host and path, and tool calls returned 404.
+
 ## 0.4.3 - 2026-11-02
 
 Absolute URLs generated during an MCP tool call now use the client's origin (#31).

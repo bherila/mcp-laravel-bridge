@@ -118,6 +118,11 @@ class InternalAgentApiTransport implements AgentApiTransport
     private function internalUri(string $path): string
     {
         $uri = rtrim($this->apiPrefix, '/').'/'.ltrim($path, '/');
+        // An application may configure an API prefix that already carries an origin.
+        if (preg_match('#^([a-z][a-z0-9+.-]*:)?//#i', $this->apiPrefix) === 1) {
+            return $uri;
+        }
+
         $authority = $this->outerRequest->headers->get('Host');
         if (! is_string($authority) || $authority === '') {
             return $uri;
