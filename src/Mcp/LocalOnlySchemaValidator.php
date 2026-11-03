@@ -14,7 +14,7 @@ class LocalOnlySchemaValidator extends SchemaValidator
         // The upstream validator includes data and schema values when an
         // internal failure is logged. Keep that diagnostic path private and
         // emit only bounded metadata below.
-        parent::__construct(new NullLogger);
+        parent::__construct(logger: new NullLogger);
     }
 
     /**

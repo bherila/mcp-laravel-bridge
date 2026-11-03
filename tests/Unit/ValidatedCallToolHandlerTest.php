@@ -6,7 +6,9 @@ use Bherila\McpLaravelBridge\Mcp\ValidatedCallToolHandler;
 use Mcp\Capability\Discovery\SchemaValidator;
 use Mcp\Capability\Registry;
 use Mcp\Capability\Registry\ReferenceHandler;
+use Mcp\Exception\ToolCallException;
 use Mcp\Schema\JsonRpc\Error;
+use Mcp\Schema\JsonRpc\Response;
 use Mcp\Schema\Request\CallToolRequest;
 use Mcp\Schema\Tool;
 use Mcp\Server\Handler\Request\CallToolHandler;
@@ -39,7 +41,7 @@ final class ValidatedCallToolHandlerTest extends TestCase
         $handler = new ValidatedCallToolHandler(
             new CallToolHandler($registry, $referenceHandler, new NullLogger),
             $registry,
-            new SchemaValidator(new NullLogger),
+            new SchemaValidator(logger: new NullLogger),
             ['things.get' => 'ThingEnvelope'],
             $logger,
             'Synthetic contract failure.',
@@ -57,6 +59,44 @@ final class ValidatedCallToolHandlerTest extends TestCase
         self::assertStringNotContainsString('private_note', $encoded);
         self::assertStringNotContainsString('sensitive prose', $encoded);
         self::assertStringNotContainsString('pointer', $encoded);
+        $answered = json_encode($response, JSON_THROW_ON_ERROR);
+        self::assertStringNotContainsString('things.get', $answered);
+        self::assertStringNotContainsString('/id', $answered);
+        self::assertStringNotContainsString('private_note', $answered);
+    }
+
+    public function test_a_tools_own_error_reaches_the_client_and_is_not_treated_as_contract_drift(): void
+    {
+        $registry = new Registry;
+        $registry->registerTool(new Tool(
+            name: 'things.get',
+            title: 'Get thing',
+            inputSchema: ['type' => 'object', 'additionalProperties' => false],
+            description: null,
+            annotations: null,
+            outputSchema: ['type' => 'object', 'required' => ['id'], 'properties' => ['id' => ['type' => 'integer']]],
+        ), static function (): never {
+            throw new ToolCallException('No such thing.');
+        });
+        $logger = new RecordingLogger;
+        $handler = new ValidatedCallToolHandler(
+            new CallToolHandler($registry, new ReferenceHandler, new NullLogger),
+            $registry,
+            new SchemaValidator(logger: new NullLogger),
+            ['things.get' => 'ThingEnvelope'],
+            $logger,
+            'Synthetic contract failure.',
+        );
+
+        $response = $handler->handle(
+            (new CallToolRequest('things.get', []))->withId(9),
+            $this->createStub(SessionInterface::class),
+        );
+
+        self::assertInstanceOf(Response::class, $response);
+        self::assertTrue($response->result->isError);
+        self::assertSame('No such thing.', $response->result->content[0]->text);
+        self::assertSame([], $logger->warnings);
     }
 }
 

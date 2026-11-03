@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.5 - Unreleased
+
+Allows `mcp/sdk` 0.9 alongside 0.7 and 0.8.
+
+- `ValidatedCallToolHandler` keeps its refusal on SDK 0.9, which validates tool output itself and answers a mismatch with an error result naming the failing properties. The client still gets only the configured failure message, and the drift warning is still logged. On 0.9 that warning's `keywords` is `['output-schema']`, because the SDK's result doesn't carry the failing keywords.
+- On 0.9 the SDK also logs the failure, with its validation errors, to the logger given to `CallToolHandler`. Pass a logger that may receive them.
+- `LocalOnlySchemaValidator` passes its logger by name, because 0.9 added a first constructor argument. An application constructing `SchemaValidator` directly with a positional logger must do the same.
+
 ## 0.4.4 - 2026-11-02
 
 Fixes a regression in 0.4.3. **Skip 0.4.3 if your `apiPrefix` includes a scheme and host.**
