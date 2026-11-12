@@ -19,11 +19,11 @@ Applications own authorization, domain actions, response content, write-flag con
 ## Installation
 
 The package supports PHP 8.3–8.5, Laravel 12/13, and the official PHP MCP SDK
-0.7/0.8. Install it as a runtime dependency: MCP routes must continue to work
-after `composer install --no-dev`.
+0.7/0.9. The vulnerable 0.8 line is excluded. Install it as a runtime dependency:
+MCP routes must continue to work after `composer install --no-dev`.
 
 ```bash
-composer require bherila/mcp-laravel-bridge:^0.2.0
+composer require bherila/mcp-laravel-bridge:^0.5.0
 ```
 
 If Composer cannot yet discover a new release through Packagist, declare the
@@ -181,8 +181,9 @@ client, and scopes before accessing data.
 
 This adapter is needed through official `mcp/sdk` v0.8.1, whose `Tool` schema
 does not yet expose the top-level field. The bridge supports and tests both the
-v0.7 and v0.8 SDK lines. Prefer the upstream SDK representation once one is
-released and proven compatible.
+v0.7 and v0.9 SDK lines. SDK 0.10 changes public namespaces and session
+behavior and requires a separate migration before it can be supported. Prefer the
+upstream SDK representation once one is released and proven compatible.
 
 Pass `null` as `StreamableHttpResponder::run()`'s middleware argument only when
 using the SDK's local-only defaults. Public Laravel routes should use the
