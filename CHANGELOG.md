@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0 - Unreleased
+
+Schema-position correctness release (#8, #25, #28). Generated JSON may change;
+review OpenAPI snapshots and consumer assumptions before upgrading from 0.5.
+
+- Share schema-bearing traversal between validation, catalog packaging, OpenAPI
+  generation and MCP schema serialization. Literal const/enum/default/example(s)
+  and extension data are opaque: reference-shaped fields and JSON kinds survive.
+- Preserve nested empty schemas/maps and booleans, including an empty component
+  through generated documents and the MCP output-schema boundary. Public PHP
+  array-returning APIs remain arrays; an empty root is explicitly normalized to
+  `{}` at schema serialization/validation boundaries. Top-level boolean MCP
+  schemas remain unsupported rather than being weakened to an empty schema.
+- Preserve nonconflicting component-owned `$defs` when transitive definitions
+  are added; reject collisions. Actual external schema references still fail
+  closed before resolution, including references in component closures.
+- Catalog reference support remains component-only. Local fragments, anchors,
+  dynamic/recursive relocation (#7) and SDK 0.10 remain separate work.
+
 ## 0.5.1 - 2026-11-12
 
 - Exclude the SDK 0.8 line affected by [GHSA-f4rf-6ghj-mhr6](https://github.com/modelcontextprotocol/php-sdk/security/advisories/GHSA-f4rf-6ghj-mhr6). SDK 0.7 compatibility remains available; SDK 0.9 is the current supported line.

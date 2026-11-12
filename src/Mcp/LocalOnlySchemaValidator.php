@@ -2,6 +2,7 @@
 
 namespace Bherila\McpLaravelBridge\Mcp;
 
+use Bherila\McpLaravelBridge\Schema\SchemaTraversal;
 use Mcp\Capability\Discovery\SchemaValidator;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -40,30 +41,23 @@ class LocalOnlySchemaValidator extends SchemaValidator
             ]];
         }
 
-        return parent::validateAgainstJsonSchema($data, $schema);
+        return parent::validateAgainstJsonSchema($data, SchemaTraversal::normalize($schema));
     }
 
     /** @return array{keyword: string, value: string}|null */
     private function firstExternalReference(mixed $node): ?array
     {
-        if (is_object($node)) {
-            $node = get_object_vars($node);
-        }
-        if (! is_array($node)) {
-            return null;
-        }
-
-        foreach ($node as $key => $value) {
-            if (in_array($key, ['$ref', '$dynamicRef', '$recursiveRef'], true)
-                && is_string($value) && ! str_starts_with($value, '#')) {
-                return ['keyword' => $key, 'value' => $value];
+        $found = null;
+        SchemaTraversal::map($node, static function (array $fields) use (&$found): array {
+            foreach (['$ref', '$dynamicRef', '$recursiveRef'] as $keyword) {
+                $value = $fields[$keyword] ?? null;
+                if ($found === null && is_string($value) && ! str_starts_with($value, '#')) {
+                    $found = ['keyword' => $keyword, 'value' => $value];
+                }
             }
-            $nested = $this->firstExternalReference($value);
-            if ($nested !== null) {
-                return $nested;
-            }
-        }
+            return $fields;
+        });
 
-        return null;
+        return $found;
     }
 }

@@ -2,6 +2,8 @@
 
 namespace Bherila\McpLaravelBridge\OpenApi;
 
+use Bherila\McpLaravelBridge\Json;
+use Bherila\McpLaravelBridge\Schema\SchemaTraversal;
 use InvalidArgumentException;
 use JsonException;
 
@@ -38,7 +40,7 @@ final class SchemaCatalog
     /** @return list<string> */
     public function componentIds(): array
     {
-        return array_keys($this->components());
+        return array_map(strval(...), array_keys($this->components()));
     }
 
     /** @return array<string, mixed> */
@@ -249,9 +251,12 @@ final class SchemaCatalog
         if (! isset($components[$component])) {
             throw new InvalidArgumentException("Unknown agent API response schema [{$component}].");
         }
+        if (is_bool($components[$component])) {
+            throw new InvalidArgumentException('Top-level boolean MCP schemas are not supported.');
+        }
         $reachable = [];
         $this->collect($component, $components, $reachable);
-        $schema = $this->rewriteSchema($components[$component]);
+        $schema = (array) $this->rewriteSchema($components[$component]);
         $referenced = $reachable;
         unset($referenced[$component]);
         $defs = [];
@@ -262,11 +267,16 @@ final class SchemaCatalog
             $defs[$component] = $this->rewriteSchema($components[$component]);
         }
         if ($defs !== []) {
+            $existing = (array) ($schema['$defs'] ?? []);
+            if (array_intersect_key($existing, $defs) !== []) {
+                throw new InvalidArgumentException('Conflicting response schema definition names.');
+            }
+            $defs = [...$existing, ...$defs];
             ksort($defs);
             $schema['$defs'] = $defs;
         }
 
-        return $schema;
+        return (array) SchemaTraversal::normalize($schema);
     }
 
     /** @param array<string, array<string, mixed>> $components @param array<string, true> $seen */
@@ -296,46 +306,40 @@ final class SchemaCatalog
         return false;
     }
 
-    /** @param array<string, mixed>|list<mixed> $node @return list<string> */
-    private function refsIn(array $node): array
+    /** @return list<string> */
+    private function refsIn(mixed $node): array
     {
         $refs = [];
-        foreach ($node as $key => $value) {
-            if ($key === '$ref' && is_string($value) && str_starts_with($value, self::REF_PREFIX)) {
-                $refs[] = substr($value, strlen(self::REF_PREFIX));
-            } elseif (is_array($value)) {
-                $refs = [...$refs, ...$this->refsIn($value)];
+        SchemaTraversal::map($node, static function (array $fields) use (&$refs): array {
+            foreach (['$ref', '$dynamicRef', '$recursiveRef'] as $keyword) {
+                $value = $fields[$keyword] ?? null;
+                if (is_string($value) && ($keyword !== '$ref' || ! str_starts_with($value, self::REF_PREFIX))) {
+                    throw new InvalidArgumentException('Unsupported response schema reference.');
+                }
             }
-        }
-
+            $value = $fields['$ref'] ?? null;
+            if (is_string($value) && str_starts_with($value, self::REF_PREFIX)) {
+                $refs[] = substr($value, strlen(self::REF_PREFIX));
+            }
+            return $fields;
+        });
         return array_values(array_unique($refs));
     }
 
-    /** @param array<string, mixed> $node @return array<string, mixed> */
-    private function rewriteSchema(array $node): array
+    private function rewriteSchema(mixed $node): mixed
     {
-        $rewritten = [];
-        foreach ($node as $key => $value) {
-            if (in_array($key, ['$ref', '$dynamicRef', '$recursiveRef'], true) && is_string($value)) {
-                if ($key !== '$ref' || ! str_starts_with($value, self::REF_PREFIX)) {
-                    throw new InvalidArgumentException('Unsupported response schema reference.');
+        return SchemaTraversal::map($node, static function (array $fields): array {
+            foreach (['$ref', '$dynamicRef', '$recursiveRef'] as $keyword) {
+                $value = $fields[$keyword] ?? null;
+                if (is_string($value)) {
+                    if ($keyword !== '$ref' || ! str_starts_with($value, self::REF_PREFIX)) {
+                        throw new InvalidArgumentException('Unsupported response schema reference.');
+                    }
+                    $fields[$keyword] = '#/$defs/'.substr($value, strlen(self::REF_PREFIX));
                 }
-                $rewritten[$key] = '#/$defs/'.substr($value, strlen(self::REF_PREFIX));
-            } else {
-                $rewritten[$key] = $this->rewriteValue($value);
             }
-        }
-
-        return $rewritten;
-    }
-
-    private function rewriteValue(mixed $value): mixed
-    {
-        if (! is_array($value)) {
-            return $value;
-        }
-
-        return array_is_list($value) ? array_map($this->rewriteValue(...), $value) : $this->rewriteSchema($value);
+            return $fields;
+        });
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -360,7 +364,12 @@ final class SchemaCatalog
             throw new InvalidArgumentException('The agent API OpenAPI document is missing or unreadable.');
         }
         try {
+            $raw = json_decode($contents, false, 512, JSON_THROW_ON_ERROR);
             $document = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+            // Keep operation envelopes/HTTP status keys compatible, but preserve schema JSON kinds.
+            if (is_object($raw) && isset($raw->components->schemas) && is_object($raw->components->schemas)) {
+                $document['components']['schemas'] = array_map(static fn (mixed $schema): mixed => Json::preserveShape(SchemaTraversal::fromJson($schema)), get_object_vars($raw->components->schemas));
+            }
         } catch (JsonException) {
             throw new InvalidArgumentException('The agent API OpenAPI document is not valid JSON.');
         }
