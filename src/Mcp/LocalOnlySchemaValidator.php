@@ -2,6 +2,7 @@
 
 namespace Bherila\McpLaravelBridge\Mcp;
 
+use Bherila\McpLaravelBridge\Schema\SchemaTraversal;
 use Mcp\Capability\Discovery\SchemaValidator;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -23,7 +24,17 @@ class LocalOnlySchemaValidator extends SchemaValidator
      */
     public function validateAgainstJsonSchema(mixed $data, array|object $schema): array
     {
-        $unsafeReference = $this->firstExternalReference($schema);
+        try {
+            // A public object may implement JsonSerializable. Guard the same immutable JSON
+            // snapshot upstream consumes, not its unrelated PHP properties or a second encoding.
+            $prepared = SchemaTraversal::normalize(json_decode(json_encode($schema, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR));
+            if (! is_array($prepared) && ! is_object($prepared)) {
+                throw new \InvalidArgumentException;
+            }
+        } catch (\Throwable) {
+            return [['pointer' => '', 'keyword' => 'schema', 'message' => 'Invalid JSON Schema definition.']];
+        }
+        $unsafeReference = $this->firstExternalReference($prepared);
         if ($unsafeReference !== null) {
             $scheme = strtolower((string) parse_url($unsafeReference['value'], PHP_URL_SCHEME));
             $this->safeLogger->warning('MCP schema validation rejected an external reference.', [
@@ -40,30 +51,23 @@ class LocalOnlySchemaValidator extends SchemaValidator
             ]];
         }
 
-        return parent::validateAgainstJsonSchema($data, $schema);
+        return parent::validateAgainstJsonSchema($data, $prepared);
     }
 
     /** @return array{keyword: string, value: string}|null */
     private function firstExternalReference(mixed $node): ?array
     {
-        if (is_object($node)) {
-            $node = get_object_vars($node);
-        }
-        if (! is_array($node)) {
-            return null;
-        }
-
-        foreach ($node as $key => $value) {
-            if (in_array($key, ['$ref', '$dynamicRef', '$recursiveRef'], true)
-                && is_string($value) && ! str_starts_with($value, '#')) {
-                return ['keyword' => $key, 'value' => $value];
+        $found = null;
+        SchemaTraversal::map($node, static function (array $fields) use (&$found): array {
+            foreach (['$ref', '$dynamicRef', '$recursiveRef'] as $keyword) {
+                $value = $fields[$keyword] ?? null;
+                if ($found === null && is_string($value) && ! str_starts_with($value, '#')) {
+                    $found = ['keyword' => $keyword, 'value' => $value];
+                }
             }
-            $nested = $this->firstExternalReference($value);
-            if ($nested !== null) {
-                return $nested;
-            }
-        }
+            return $fields;
+        });
 
-        return null;
+        return $found;
     }
 }

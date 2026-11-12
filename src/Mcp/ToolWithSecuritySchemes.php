@@ -2,6 +2,7 @@
 
 namespace Bherila\McpLaravelBridge\Mcp;
 
+use Bherila\McpLaravelBridge\Schema\SchemaTraversal;
 use Mcp\Exception\InvalidArgumentException;
 use Mcp\Schema\Icon;
 use Mcp\Schema\Tool;
@@ -79,10 +80,13 @@ final class ToolWithSecuritySchemes extends Tool
     /** @return array<string, mixed> */
     public function jsonSerialize(): array
     {
-        return [
-            ...parent::jsonSerialize(),
-            'securitySchemes' => $this->securitySchemes,
-        ];
+        $serialized = [...parent::jsonSerialize(), 'securitySchemes' => $this->securitySchemes];
+        foreach (['inputSchema', 'outputSchema'] as $key) {
+            if (isset($serialized[$key])) {
+                $serialized[$key] = SchemaTraversal::normalize($serialized[$key]);
+            }
+        }
+        return $serialized;
     }
 
     /**

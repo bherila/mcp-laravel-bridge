@@ -6,6 +6,7 @@ use Bherila\McpLaravelBridge\Mcp\ReflectedInputSchemaFactory;
 use Bherila\McpLaravelBridge\Mcp\ToolDefinition;
 use Bherila\McpLaravelBridge\Mcp\ToolWithSecuritySchemes;
 use Bherila\McpLaravelBridge\OpenApi\SchemaCatalog;
+use Bherila\McpLaravelBridge\Schema\SchemaTraversal;
 use LogicException;
 use Mcp\Schema\ToolAnnotations;
 
@@ -96,7 +97,7 @@ final class OperationToolFactory
             $schema['required'] = $required;
         }
         if (isset($declared['$defs'])) {
-            $schema['$defs'] = [...($schema['$defs'] ?? []), ...$declared['$defs']];
+            $schema['$defs'] = [...(array) ($schema['$defs'] ?? []), ...(array) $declared['$defs']];
         }
         // Every other declared keyword (combinators, not, if/then, propertyNames,
         // minProperties, ...) carries over unchanged: dropping one would let
@@ -133,15 +134,7 @@ final class OperationToolFactory
      */
     private static function objectProperties(array $schema): array
     {
-        foreach ($schema as $key => $value) {
-            if ($key === 'properties' && $value === []) {
-                $schema[$key] = new \stdClass;
-            } elseif (is_array($value)) {
-                $schema[$key] = self::objectProperties($value);
-            }
-        }
-
-        return $schema;
+        return (array) SchemaTraversal::normalize($schema);
     }
 
     /**

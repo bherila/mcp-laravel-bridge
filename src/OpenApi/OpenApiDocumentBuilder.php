@@ -10,6 +10,7 @@ use Bherila\McpLaravelBridge\Capabilities\Principal;
 use Bherila\McpLaravelBridge\Capabilities\ScopeRule;
 use Bherila\McpLaravelBridge\Capabilities\SchemaRef;
 use Bherila\McpLaravelBridge\Http\PayloadCodecs;
+use Bherila\McpLaravelBridge\Schema\SchemaTraversal;
 use JsonException;
 use LogicException;
 use RuntimeException;
@@ -197,14 +198,14 @@ final class OpenApiDocumentBuilder
             $declared = is_array($resolved['properties'] ?? null) ? $resolved['properties'] : [];
             $parameters = array_map(static function (string $name) use ($declared): array {
                 // The input's own definition of the parameter, when it has one.
-                $schema = is_array($declared[$name] ?? null) ? $declared[$name] : ['type' => 'string'];
+                $schema = $declared[$name] ?? ['type' => 'string'];
                 $parameter = ['name' => $name, 'in' => 'path', 'required' => true];
-                if (is_string($schema['description'] ?? null)) {
+                if (is_array($schema) && is_string($schema['description'] ?? null)) {
                     $parameter['description'] = $schema['description'];
                     unset($schema['description']);
                 }
 
-                return [...$parameter, 'schema' => $schema];
+                return [...$parameter, 'schema' => SchemaTraversal::normalize($schema)];
             }, $pathParameters);
             if (in_array($operation->safety->idempotencyKey, [IdempotencyKey::Header, IdempotencyKey::HeaderAndArgument], true)) {
                 $parameters[] = [
@@ -440,7 +441,7 @@ final class OpenApiDocumentBuilder
             return $operation->input->resolve($this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.'));
         }
 
-        return $operation->input === null ? null : self::objectMaps($operation->input);
+        return $operation->input === null ? null : (array) self::objectMaps($operation->input);
     }
 
     /**
@@ -449,47 +450,67 @@ final class OpenApiDocumentBuilder
      */
     private function referenceComponentsIn(mixed $node, string $owner): void
     {
-        if (! is_array($node)) {
-            return;
+        if (is_object($node)) { $node = get_object_vars($node); }
+        if (! is_array($node)) { return; }
+        if (is_string($node['$ref'] ?? null)) {
+            $this->carryReference($node['$ref'], $owner);
         }
-        foreach ($node as $key => $value) {
-            if (in_array($key, ['example', 'examples', 'default', 'enum', 'const'], true) || str_starts_with((string) $key, 'x-')) {
-                // Literal payload or extension data: a "$ref" there is an ordinary field.
-                continue;
+        if (array_key_exists('schema', $node)) {
+            $this->schemaReferencesIn($node['schema'], $owner);
+        }
+        foreach (['content', 'headers', 'encoding'] as $map) {
+            foreach (is_array($node[$map] ?? null) ? $node[$map] : [] as $entry) {
+                $this->referenceComponentsIn($entry, $owner);
             }
-            if ($key === '$ref' && is_string($value)) {
-                // The component is the pointer's first segment below its
-                // section; a reference may point further into it.
-                $segments = explode('/', $value);
-                $section = $segments[0] === '#' && ($segments[1] ?? null) === 'components' ? ($segments[2] ?? null) : null;
-                $name = str_replace(['~1', '~0'], ['/', '~'], $segments[3] ?? '');
-                if ($section === 'schemas' && $name !== '') {
-                    if ($this->catalog === null || ! in_array($name, $this->catalog->componentIds(), true)) {
-                        throw new LogicException("{$owner} references schema [{$name}], which no SchemaCatalog provides.");
+        }
+    }
+
+    private function schemaReferencesIn(mixed $schema, string $owner): void
+    {
+        SchemaTraversal::map($schema, function (array $fields) use ($owner): array {
+            foreach (['$ref', '$dynamicRef', '$recursiveRef'] as $keyword) {
+                if (is_string($fields[$keyword] ?? null)) {
+                    if ($keyword !== '$ref') {
+                        throw new LogicException("{$owner} declares an unsupported schema reference keyword.");
                     }
-                    $target = $this->catalog->componentClosure($name)[$name];
-                    foreach (array_slice($segments, 4) as $segment) {
-                        $segment = str_replace(['~1', '~0'], ['/', '~'], $segment);
-                        if (! is_array($target) || ! array_key_exists($segment, $target)) {
-                            throw new LogicException("{$owner} references [{$value}], which schema [{$name}] does not contain.");
-                        }
-                        $target = $target[$segment];
-                    }
-                    $this->components[$name] = true;
-                } elseif ($section === 'parameters' && $name !== '') {
-                    if (! isset($this->settings->parameters[$name])) {
-                        throw new LogicException("{$owner} references [{$value}], which OpenApiSettings::\$parameters does not define.");
-                    }
-                } elseif ($section === 'responses' && $name !== '') {
-                    if (! isset($this->settings->responses[$name])) {
-                        throw new LogicException("{$owner} references [{$value}], which OpenApiSettings::\$responses does not define.");
-                    }
-                } else {
-                    throw new LogicException("{$owner} references [{$value}], which is not a component of this document.");
+                    $this->carryReference($fields[$keyword], $owner);
                 }
-            } else {
-                $this->referenceComponentsIn($value, $owner);
             }
+            return $fields;
+        });
+    }
+
+    private function carryReference(string $value, string $owner): void
+    {
+        // The component is the pointer's first segment below its
+        // section; a reference may point further into it.
+        $segments = explode('/', $value);
+        $section = $segments[0] === '#' && ($segments[1] ?? null) === 'components' ? ($segments[2] ?? null) : null;
+        $name = str_replace(['~1', '~0'], ['/', '~'], $segments[3] ?? '');
+        if ($section === 'schemas' && $name !== '') {
+            if ($this->catalog === null || ! in_array($name, $this->catalog->componentIds(), true)) {
+                throw new LogicException("{$owner} references schema [{$name}], which no SchemaCatalog provides.");
+            }
+            $target = $this->catalog->componentClosure($name)[$name];
+            foreach (array_slice($segments, 4) as $segment) {
+                $segment = str_replace(['~1', '~0'], ['/', '~'], $segment);
+                if (is_object($target)) { $target = get_object_vars($target); }
+                if (! is_array($target) || ! array_key_exists($segment, $target)) {
+                    throw new LogicException("{$owner} references [{$value}], which schema [{$name}] does not contain.");
+                }
+                $target = $target[$segment];
+            }
+            $this->components[$name] = true;
+        } elseif ($section === 'parameters' && $name !== '') {
+            if (! isset($this->settings->parameters[$name])) {
+                throw new LogicException("{$owner} references [{$value}], which OpenApiSettings::\$parameters does not define.");
+            }
+        } elseif ($section === 'responses' && $name !== '') {
+            if (! isset($this->settings->responses[$name])) {
+                throw new LogicException("{$owner} references [{$value}], which OpenApiSettings::\$responses does not define.");
+            }
+        } else {
+            throw new LogicException("{$owner} references [{$value}], which is not a component of this document.");
         }
     }
 
@@ -620,9 +641,10 @@ final class OpenApiDocumentBuilder
      * @param  array<string, mixed>|SchemaRef|null  $schema
      * @return array<string, mixed>|null
      */
-    private function schema(array|SchemaRef|null $schema): ?array
+    private function schema(array|SchemaRef|null $schema): array|stdClass|null
     {
         if (! $schema instanceof SchemaRef) {
+            if ($schema !== null) { $this->schemaReferencesIn($schema, 'Inline operation schema'); }
             return $schema === null ? null : self::objectMaps($schema);
         }
         $catalog = $this->catalog ?? throw new LogicException('An OpenAPI-referenced schema needs a SchemaCatalog.');
@@ -643,13 +665,13 @@ final class OpenApiDocumentBuilder
      * @param  array<string, mixed>|SchemaRef  $schema
      * @return array<string, mixed>
      */
-    private function declaredSchema(array|SchemaRef $schema, string $owner): array
+    private function declaredSchema(array|SchemaRef $schema, string $owner): array|stdClass
     {
         if (is_array($schema)) {
-            $this->referenceComponentsIn($schema, $owner);
+            $this->schemaReferencesIn($schema, $owner);
         }
 
-        return (array) $this->schema($schema);
+        return $this->schema($schema);
     }
 
     /** @return array<string, mixed> */
@@ -662,8 +684,8 @@ final class OpenApiDocumentBuilder
                     $section === 'parameters'
                         ? self::assertParameterObject($fragment, "OpenApiSettings::\$parameters[{$name}]")
                         : self::assertResponseObject($fragment, "OpenApiSettings::\$responses[{$name}]");
+                    $this->referenceComponentsIn($fragment, "OpenApiSettings::\${$section}");
                 }
-                $this->referenceComponentsIn($declared, "OpenApiSettings::\${$section}");
                 $components[$section] = array_map(self::fragmentMaps(...), $declared);
                 if ($section === 'responses') {
                     $components[$section] = array_map($this->withCodecTypes(...), $components[$section]);
@@ -676,7 +698,7 @@ final class OpenApiDocumentBuilder
         }
         if ($schemas !== []) {
             ksort($schemas);
-            $components['schemas'] = self::objectMaps($schemas);
+            $components['schemas'] = array_map(SchemaTraversal::normalize(...), $schemas);
         }
 
         return $components;
@@ -691,8 +713,8 @@ final class OpenApiDocumentBuilder
      */
     private static function fragmentMaps(array $fragment): array
     {
-        if (is_array($fragment['schema'] ?? null)) {
-            $fragment['schema'] = self::objectMaps($fragment['schema']);
+        if (array_key_exists('schema', $fragment)) {
+            $fragment['schema'] = SchemaTraversal::normalize($fragment['schema']);
         }
         foreach (['content', 'headers'] as $map) {
             if (is_array($fragment[$map] ?? null)) {
@@ -711,17 +733,9 @@ final class OpenApiDocumentBuilder
      * @param  array<array-key, mixed>  $schema
      * @return array<array-key, mixed>
      */
-    private static function objectMaps(array $schema): array
+    private static function objectMaps(array $schema): array|stdClass
     {
-        foreach ($schema as $key => $value) {
-            if (in_array($key, ['properties', 'patternProperties', '$defs', 'dependentSchemas'], true) && $value === []) {
-                $schema[$key] = new stdClass;
-            } elseif (is_array($value)) {
-                $schema[$key] = self::objectMaps($value);
-            }
-        }
-
-        return $schema;
+        return SchemaTraversal::normalize($schema);
     }
 
     /**
@@ -761,21 +775,28 @@ final class OpenApiDocumentBuilder
         // nothing more: a combinator, a dependency or a conditional would be
         // dropped and the document would accept what the operation refuses.
         $unsupported = array_diff(array_keys($schema), ['type', 'properties', 'required', 'additionalProperties', 'description', 'title', '$schema', '$comment']);
-        if ($unsupported !== [] || str_contains((string) json_encode($schema['properties'] ?? []), '"$ref"')) {
+        $hasReferences = false;
+        SchemaTraversal::map($schema, static function (array $fields) use (&$hasReferences): array {
+            foreach (['$ref', '$dynamicRef', '$recursiveRef'] as $keyword) {
+                $hasReferences = $hasReferences || is_string($fields[$keyword] ?? null);
+            }
+            return $fields;
+        });
+        if ($unsupported !== [] || $hasReferences) {
             throw new LogicException("Operation [{$operationId}] takes query parameters, but its input uses ".($unsupported === [] ? 'references' : implode(', ', $unsupported)).', which query parameters cannot express.');
         }
         $required = array_flip(array_filter(is_array($schema['required'] ?? null) ? $schema['required'] : [], 'is_string'));
         $parameters = [];
-        foreach (is_array($schema['properties'] ?? null) ? $schema['properties'] : [] as $name => $property) {
-            if (! is_string($name) || ! is_array($property) || in_array($name, $pathParameters, true)) {
+        foreach ((array) ($schema['properties'] ?? []) as $name => $property) {
+            if ((! is_array($property) && ! is_object($property) && ! is_bool($property)) || in_array((string) $name, $pathParameters, true)) {
                 continue;
             }
-            $parameter = ['name' => $name, 'in' => 'query', 'required' => isset($required[$name])];
-            if (is_string($property['description'] ?? null)) {
+            $parameter = ['name' => (string) $name, 'in' => 'query', 'required' => isset($required[$name])];
+            if (is_array($property) && is_string($property['description'] ?? null)) {
                 $parameter['description'] = $property['description'];
                 unset($property['description']);
             }
-            $parameter['schema'] = $property;
+            $parameter['schema'] = SchemaTraversal::normalize($property);
             $parameters[] = $parameter;
         }
 

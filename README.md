@@ -206,6 +206,33 @@ logger receives metadata only.
 tool schemas therefore remain self-contained and cannot initiate network or
 filesystem retrieval.
 
+### Schema traversal and 0.6 migration
+
+The internal traversal recognizes schema-bearing keywords: combinators and
+conditionals, properties/patternProperties, `$defs`/definitions/dependentSchemas,
+items/prefixItems, additional/unevaluated properties/items, contains,
+propertyNames and contentSchema. Legacy tuple items and schema dependencies
+are traversed too; property-dependency name lists remain data. Instance-valued
+const/enum/default/example/examples and extension values are never traversed.
+Object/list distinctions in document literals are preserved, including numeric
+object keys and empty objects. Use `(object) []` when declaring a literal empty
+object in PHP; `[]` is a literal empty list outside schema/map positions.
+
+Public `SchemaCatalog::schema()`/`SchemaRef::resolve()` array facades are retained.
+An empty schema root is represented by an empty PHP array there and serialized
+as `{}` at the bridge's document/MCP/validation boundaries. Component closures
+preserve empty objects and booleans for OpenAPI generation; top-level boolean
+MCP tool schemas are explicitly unsupported. Existing component-owned `$defs`
+are retained when packaging, with conflicting generated names refused.
+
+Version 0.6 corrects generated documents that formerly rewrote literal data or
+emitted empty schemas as `[]`. Review snapshot differences; do not automatically
+rewrite a shipped contract. The catalog's supported references remain
+`#/components/schemas/…`; local fragment/anchor/dynamic relocation is tracked in
+#7. The validator retains its existing fragment-only policy. Neither path loads
+external schemas from the network or filesystem. No SDK range changes accompany
+this correction.
+
 ## Sessions
 
 `CredentialSessionNamespace::prefix()` hashes the current bearer/access-token
