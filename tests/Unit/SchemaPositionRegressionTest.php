@@ -180,7 +180,7 @@ final class SchemaPositionRegressionTest extends TestCase
         {
             public string $ref = 'https://private.invalid/schema';
         };
-        self::assertSame('$ref', $validator->validateAgainstJsonSchema('synthetic', $public)[0]['keyword']);
+        self::assertSame([], $validator->validateAgainstJsonSchema('synthetic', $public), 'A PHP property named ref has no dollar sign and is ordinary data.');
         $changing = new class implements \JsonSerializable
         {
             public int $calls = 0;

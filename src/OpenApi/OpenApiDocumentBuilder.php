@@ -684,7 +684,7 @@ final class OpenApiDocumentBuilder
                     $section === 'parameters'
                         ? self::assertParameterObject($fragment, "OpenApiSettings::\$parameters[{$name}]")
                         : self::assertResponseObject($fragment, "OpenApiSettings::\$responses[{$name}]");
-                    $this->referenceComponentsIn($fragment, "OpenApiSettings::\${$section}[{$name}]");
+                    $this->referenceComponentsIn($fragment, "OpenApiSettings::\${$section}");
                 }
                 $components[$section] = array_map(self::fragmentMaps(...), $declared);
                 if ($section === 'responses') {
