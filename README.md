@@ -23,7 +23,7 @@ The package supports PHP 8.3–8.5, Laravel 12/13, and the official PHP MCP SDK
 MCP routes must continue to work after `composer install --no-dev`.
 
 ```bash
-composer require bherila/mcp-laravel-bridge:^0.5.0
+composer require bherila/mcp-laravel-bridge:^0.5.1
 ```
 
 If Composer cannot yet discover a new release through Packagist, declare the
