@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 - 2026-11-12
+
+- Exclude the SDK 0.8 line affected by [GHSA-f4rf-6ghj-mhr6](https://github.com/modelcontextprotocol/php-sdk/security/advisories/GHSA-f4rf-6ghj-mhr6). SDK 0.7 compatibility remains available; SDK 0.9 is the current supported line.
+- Exercise SDK 0.9 explicitly in CI and audit each resolved dependency set, including the lowest-dependency and SDK 0.7 compatibility jobs. SDK 0.10 remains excluded pending its namespace/session migration.
+
 ## 0.5.0 - 2026-11-03
 
 Allows `mcp/sdk` 0.9 alongside 0.7 and 0.8. This is a minor release so that an application on `^0.4.x` that does not pin `mcp/sdk` cannot move to 0.9 by accident during an unrelated `composer update`.
