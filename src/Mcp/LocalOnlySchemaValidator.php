@@ -24,7 +24,17 @@ class LocalOnlySchemaValidator extends SchemaValidator
      */
     public function validateAgainstJsonSchema(mixed $data, array|object $schema): array
     {
-        $unsafeReference = $this->firstExternalReference($schema);
+        try {
+            // A public object may implement JsonSerializable. Guard the same immutable JSON
+            // snapshot upstream consumes, not its unrelated PHP properties or a second encoding.
+            $prepared = SchemaTraversal::normalize(json_decode(json_encode($schema, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR));
+            if (! is_array($prepared) && ! is_object($prepared)) {
+                throw new \InvalidArgumentException;
+            }
+        } catch (\Throwable) {
+            return [['pointer' => '', 'keyword' => 'schema', 'message' => 'Invalid JSON Schema definition.']];
+        }
+        $unsafeReference = $this->firstExternalReference($prepared);
         if ($unsafeReference !== null) {
             $scheme = strtolower((string) parse_url($unsafeReference['value'], PHP_URL_SCHEME));
             $this->safeLogger->warning('MCP schema validation rejected an external reference.', [
@@ -41,7 +51,7 @@ class LocalOnlySchemaValidator extends SchemaValidator
             ]];
         }
 
-        return parent::validateAgainstJsonSchema($data, SchemaTraversal::normalize($schema));
+        return parent::validateAgainstJsonSchema($data, $prepared);
     }
 
     /** @return array{keyword: string, value: string}|null */

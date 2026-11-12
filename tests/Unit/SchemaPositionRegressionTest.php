@@ -165,6 +165,43 @@ final class SchemaPositionRegressionTest extends TestCase
         $catalog->schema('Root');
     }
 
+    public function test_object_schemas_are_guarded_after_serialization_and_encoded_only_once(): void
+    {
+        $validator = new LocalOnlySchemaValidator;
+        $object = new class implements \JsonSerializable
+        {
+            public function jsonSerialize(): mixed
+            {
+                return ['$ref' => 'file:///private/schema'];
+            }
+        };
+        self::assertSame('$ref', $validator->validateAgainstJsonSchema('synthetic', $object)[0]['keyword']);
+        $public = new class
+        {
+            public string $ref = 'https://private.invalid/schema';
+        };
+        self::assertSame('$ref', $validator->validateAgainstJsonSchema('synthetic', $public)[0]['keyword']);
+        $changing = new class implements \JsonSerializable
+        {
+            public int $calls = 0;
+
+            public function jsonSerialize(): mixed
+            {
+                return ++$this->calls === 1 ? ['type' => 'string'] : ['$ref' => 'file:///private/schema'];
+            }
+        };
+        self::assertSame([], $validator->validateAgainstJsonSchema('synthetic', $changing));
+        self::assertSame(1, $changing->calls);
+        $throwing = new class implements \JsonSerializable
+        {
+            public function jsonSerialize(): mixed
+            {
+                throw new \RuntimeException('synthetic-private-exception');
+            }
+        };
+        self::assertSame([['pointer' => '', 'keyword' => 'schema', 'message' => 'Invalid JSON Schema definition.']], $validator->validateAgainstJsonSchema('synthetic', $throwing));
+    }
+
     private function positions(array $child): array
     {
         $schemas = [$child];
